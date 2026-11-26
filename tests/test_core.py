@@ -391,3 +391,11 @@ def test_money_allocate_exact():
     assert sum(allocate(1001, [1, 1, 1])) == 1001
     assert allocate(100, [0, 0]) == [50, 50]
     assert sum(allocate(7, [3, 0, 1])) == 7 and allocate(7, [3, 0, 1])[1] == 0
+
+
+def test_migrate_creates_missing_data_folder(tmp_path):
+    """A fresh download has no data/ folder; startup must create it rather than crash."""
+    from app.db import migrate
+    target = tmp_path / "missing" / "nested" / "main.sqlite"
+    migrate(f"sqlite:///{target}")
+    assert target.exists()
