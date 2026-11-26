@@ -782,6 +782,18 @@ def create_app(database_url: str | None = None, scheduler: bool | None = None) -
             return go(f"/sales/{sid}", err=str(e))
         return go(f"/sales/{sid}", "Refund recorded")
 
+    @app.post("/sales/{sid}/costs")
+    async def sale_costs(sid: int, request: Request, s: Session = Depends(db)):
+        f = await form(request)
+        so = s.get(SalesOrder, sid) or _404()
+        try:
+            diff = sales.adjust_costs(s, so, **{k: p(f.get(k)) for k in sales.COST_FIELDS})
+            s.commit()
+        except (ValueError, MoneyError) as e:
+            s.rollback()
+            return go(f"/sales/{sid}", err=str(e))
+        return go(f"/sales/{sid}", f"Selling costs updated ({fmt(diff)} change posted to the ledger)" if diff else "No change")
+
     @app.post("/sales/{sid}/cancel")
     def sale_cancel(sid: int, s: Session = Depends(db)):
         so = s.get(SalesOrder, sid) or _404()

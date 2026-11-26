@@ -38,9 +38,9 @@ All 15 have automated tests and pass (`python -m pytest`: 56 tests).
 | Box Split Calculator | ✅ | Component values from the catalogue, editable prices, unsold %, copies, break-even units, whole vs split comparison. Real splits create inventory with an auditable cost allocation. |
 | Watchlist | 🟡 | Products with target cost → one-time alerts when a listing lands below target. Saved searches, quiet hours, auction-closing reminders ⬜. |
 | Inventory | ✅ | Statuses, cost basis with allocated costs, splits, adjustments/write-offs, ageing colours and suggestions (user decides), CSV export, item history. Photos ⬜. |
-| Sales | ✅ | Multi-line sales, fee estimate from profile or actual fees, refunds, returns (restock or damaged), cancellation. eBay report import ⬜. |
+| Sales | ✅ | Multi-line sales, fee estimate from profile or actual fees, refunds, returns (restock or damaged), cancellation, cost corrections posted as ledger adjustments. eBay orders report import (match by Custom Label = SKU, then title). |
 | Finance & Analytics | ✅ | Ledger, capital in/withdrawals, overheads, transaction vs business profit, monthly table, reconciliation. Tax-year reports/accounting export ⬜. |
-| Imports | 🟡 | CSV/JSON for products (+contents), sold prices (label required), listings, purchases; review queue; duplicate protection. EML/email/mailbox ⬜. |
+| Imports | 🟡 | CSV/JSON for products (+contents), sold prices (label required), listings, purchases, eBay orders report; review queue; duplicate protection. EML/email/mailbox ⬜. |
 | Source Manager | 🟡 | All requested sources listed with honest status, buyer-fee profile per source, eBay search profiles, scan job history with cancel. eBay is “partial” (active listings only, no sold data); only manual/CSV/local are “working”. |
 | Settings | ✅ | Budget rules, selling-fee profiles (unverified defaults), scoring, valuation window, VAT flag, backup download. |
 | Global search, notifications, quick actions | ✅ | |
@@ -50,6 +50,6 @@ All 15 have automated tests and pass (`python -m pytest`: 56 tests).
 ## Next (proposed order)
 
 1. ~~eBay Browse API adapter + scheduled scans~~ (built; verify with real keys).
-2. eBay order report import and saved-search email (EML) import.
+2. ~~eBay orders report import~~ (built); saved-search email (EML) import.
 3. ~~Per-auctioneer fee profiles~~ (built); lot-page extraction where terms allow.
 4. Seed the real catalogue (start with the Combat Patrols / Battleforces Seb actually buys).

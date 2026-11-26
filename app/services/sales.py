@@ -191,3 +191,30 @@ def cancel(s: Session, so: SalesOrder, reason: str = "Cancelled", on: date | Non
 
 def allocate_order_costs(total_p: int, line_values: list[int]) -> list[int]:
     return allocate(total_p, line_values)
+
+
+COST_FIELDS = ("platform_fees_p", "ad_fees_p", "postage_p", "packaging_p", "other_costs_p")
+
+
+def adjust_costs(s: Session, so: SalesOrder, on: date | None = None, **new: int) -> int:
+    """Correct a sale's selling costs (e.g. estimated fees replaced by actual ones).
+    Posts the difference to the ledger rather than rewriting history. Returns the change in pence."""
+    if so.status == "cancelled":
+        raise ValueError("Cancelled orders cannot be adjusted")
+    before = selling_costs_total(so)
+    changes = {}
+    for k, v in new.items():
+        if k not in COST_FIELDS or v is None:
+            continue
+        if v < 0:
+            raise ValueError("Amounts cannot be negative")
+        if getattr(so, k) != v:
+            changes[k] = (getattr(so, k), v)
+            setattr(so, k, v)
+    diff = selling_costs_total(so) - before
+    if diff:
+        ledger.post(s, "selling_cost", -diff, f"Cost correction {so.platform} {so.order_ref}", on or date.today(),
+                    "sales_order", so.id)
+    if changes:
+        audit(s, "sales_order", so.id, "adjust_costs", {k: list(v) for k, v in changes.items()})
+    return diff

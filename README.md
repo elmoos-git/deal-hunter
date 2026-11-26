@@ -6,7 +6,16 @@ Runs locally on your computer. Single user, no login, binds to `127.0.0.1`.
 - Design, architecture, ER model, roadmap, source feasibility, assumptions: [`docs/DESIGN.md`](docs/DESIGN.md)
 - What works today and what doesn't: [`docs/STATUS.md`](docs/STATUS.md)
 
-## Setup
+## Quick start (no typing)
+
+1. Install Python 3.11 or newer from [python.org](https://www.python.org/downloads/) (on Windows, tick **Add python.exe to PATH**).
+2. Download this repository (Code → Download ZIP) and unzip it.
+3. Double-click **`start-windows.bat`** (Windows) or **`start-mac.command`** (Mac; the first time, right-click → Open).
+   The first run installs what it needs; then your browser opens at http://127.0.0.1:8000. Close the window to stop.
+
+Your data lives in the `data/` folder inside that directory. Keep it when you download a newer version.
+
+## Setup (manual)
 
 Needs Python 3.11+ (tested on 3.13).
 
