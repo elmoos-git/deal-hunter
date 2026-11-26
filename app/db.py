@@ -17,9 +17,14 @@ class Base(DeclarativeBase):
 _engines: dict[str, Engine] = {}
 
 
-def make_engine(url: str) -> Engine:
-    if url.startswith("sqlite:///"):
+def ensure_sqlite_dir(url: str) -> None:
+    """SQLite cannot create missing folders, and a fresh download has no data/ folder."""
+    if url.startswith("sqlite:///") and ":memory:" not in url:
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+
+
+def make_engine(url: str) -> Engine:
+    ensure_sqlite_dir(url)
     eng = create_engine(url, future=True, connect_args={"check_same_thread": False} if url.startswith("sqlite") else {})
     if url.startswith("sqlite"):
         @event.listens_for(eng, "connect")
@@ -43,9 +48,11 @@ def migrate(url: str | None = None) -> None:
     from alembic import command
     from alembic.config import Config
 
+    url = url or get_settings().database_url
+    ensure_sqlite_dir(url)
     cfg = Config(str(ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(ROOT / "alembic"))
-    cfg.set_main_option("sqlalchemy.url", url or get_settings().database_url)
+    cfg.set_main_option("sqlalchemy.url", url)
     command.upgrade(cfg, "head")
 
 
