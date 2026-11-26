@@ -9,6 +9,7 @@ Runs locally on your computer. Single user, no login, binds to `127.0.0.1`.
 ## Quick start (no typing)
 
 1. Install Python 3.11 or newer from [python.org](https://www.python.org/downloads/) (on Windows, tick **Add python.exe to PATH**).
+   On a Mac, the built-in `python3` is usually 3.9, which is too old: use the python.org "macOS 64-bit universal2 installer". The start script finds the new Python by itself.
 2. Download this repository (Code → Download ZIP) and unzip it.
 3. Double-click **`start-windows.bat`** (Windows) or **`start-mac.command`** (Mac; the first time, right-click → Open).
    The first run installs what it needs; then your browser opens at http://127.0.0.1:8000. Close the window to stop.
