@@ -11,6 +11,11 @@
 <div class="panel"><h2>Lines</h2><table><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Cost</th><th class="num">Returned</th></tr>
 {% for ln in so.items %}<tr><td><a href="/inventory/{{ ln.inventory_item_id }}">{{ ln.item.sku }}</a> {{ ln.item.name }}</td><td class="num">{{ ln.quantity }}</td><td class="num">{{ ln.unit_price_p|gbp }}</td><td class="num">{{ ln.cogs_p|gbp }}</td><td class="num">{{ ln.returned_quantity }}</td></tr>{% endfor %}</table>
 <table style="margin-top:10px"><tr><td>Platform fees</td><td class="num">{{ so.platform_fees_p|gbp }}</td></tr><tr><td>Advertising</td><td class="num">{{ so.ad_fees_p|gbp }}</td></tr><tr><td>Postage</td><td class="num">{{ so.postage_p|gbp }}</td></tr><tr><td>Packaging</td><td class="num">{{ so.packaging_p|gbp }}</td></tr><tr><td>Other</td><td class="num">{{ so.other_costs_p|gbp }}</td></tr></table>
+{% if so.status != 'cancelled' %}<details style="margin-top:10px" {{ 'open' if so.notes and 'ESTIMATES' in so.notes }}><summary>Correct selling costs</summary>
+<form class="form" method="post" action="/sales/{{ so.id }}/costs" style="margin-top:8px">
+{% for k, label in [('platform_fees_p','Platform fees'),('ad_fees_p','Advertising'),('postage_p','Postage'),('packaging_p','Packaging'),('other_costs_p','Other')] %}<label>{{ label }} (£)<input name="{{ k }}" value="{{ '%.2f'|format(so[k]/100) }}"></label>{% endfor %}
+<button>Save actual costs</button></form><p class="faint">The difference is posted to the ledger as a correction; the original entries stay.</p></details>{% endif %}
+{% if so.notes %}<p class="{{ 'warn' if 'ESTIMATES' in so.notes else 'faint' }}">{{ so.notes }}</p>{% endif %}
 {% if so.refunds %}<h2 style="margin-top:10px">Refunds</h2>{% for r in so.refunds %}<div class="mono">{{ r.created_at|dt }} −{{ r.amount_p|gbp }}{% if r.fee_credit_p %} (fee credit {{ r.fee_credit_p|gbp }}){% endif %} <span class="faint">{{ r.reason or '' }}</span></div>{% endfor %}{% endif %}</div>
 {% if so.status not in ('cancelled','refunded') %}<form class="panel" method="post" action="/sales/{{ so.id }}/refund" data-confirm="Record this refund?"><h2>Refund / return</h2><div class="form">
 <label>Refund amount (£)<input name="amount" required></label><label>Fee credit received (£)<input name="fee_credit" value="0"></label>

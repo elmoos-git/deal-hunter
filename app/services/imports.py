@@ -16,7 +16,7 @@ from app.services import catalogue, deals, purchasing
 from app.services import valuation as val
 from app.services.safety import UnsafeURL
 
-KINDS = ("products", "sold_observations", "listings", "purchases")
+KINDS = ("products", "sold_observations", "listings", "purchases", "ebay_orders")
 
 
 class DuplicateFile(Exception):
@@ -80,10 +80,17 @@ def run_import(s: Session, kind: str, filename: str, content: bytes) -> ImportJo
     prior = s.scalar(select(ImportJob).where(ImportJob.kind == kind, ImportJob.file_hash == digest))
     if prior:
         raise DuplicateFile(prior)
-    rows = parse_rows(filename, content)
-    job = ImportJob(kind=kind, filename=filename[:300], file_hash=digest, rows_total=len(rows), summary=[])
+    job = ImportJob(kind=kind, filename=filename[:300], file_hash=digest, rows_total=0, summary=[])
     s.add(job)
     s.flush()
+    if kind == "ebay_orders":
+        from app.services.ebay_orders import import_orders
+        import_orders(s, job, content, lambda j, n, issue, row: _review(s, j, n, issue, row))
+        job.status = "needs_review" if job.rows_review else ("completed_with_errors" if job.rows_error else "completed")
+        s.flush()
+        return job
+    rows = parse_rows(filename, content)
+    job.rows_total = len(rows)
     handler = {"products": _import_products, "sold_observations": _import_observations,
                "listings": _import_listings, "purchases": _import_purchases}[kind]
     handler(s, job, rows)

@@ -191,6 +191,20 @@ class SearchProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class AuctionFeeProfile(Base):
+    """Buyer-side fee terms for one auction house (or one sale). Entered from the auctioneer's own terms."""
+    __tablename__ = "auction_fee_profiles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    source_key: Mapped[str | None] = mapped_column(String(60), index=True)
+    schedule: Mapped[dict] = mapped_column(JSON)  # AuctionFeeSchedule fields
+    terms_url: Mapped[str | None] = mapped_column(String(1000))
+    checked_on: Mapped[date | None] = mapped_column(Date)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class MarketListing(Base):
     __tablename__ = "market_listings"
     __table_args__ = (UniqueConstraint("source_id", "external_id"),)
