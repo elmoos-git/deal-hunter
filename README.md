@@ -42,8 +42,22 @@ Demo products are named `[DEMO] …` and all demo sold prices carry `data_label=
 | `DATABASE_URL_DEMO` | `sqlite:///data/demo.sqlite` | Demo DB |
 | `DEAL_HUNTER_HOST` / `DEAL_HUNTER_PORT` | `127.0.0.1` / `8000` | Bind address. Do not expose publicly: there is no authentication yet. |
 | `DEAL_HUNTER_HTTP_TIMEOUT` | `8` | Seconds, for user-initiated URL capture |
+| `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` | — | eBay Production keyset (App ID / Cert ID). Enables the eBay scanner. |
+| `EBAY_ENVIRONMENT` | `production` | `sandbox` to use eBay's test data |
+| `DEAL_HUNTER_SCHEDULER` | `1` | `0` disables scheduled scans |
 
-Future integration secrets (e.g. `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`) go in `.env`, which is git-ignored.
+Secrets go in `.env` (git-ignored); see `.env.example`.
+
+### eBay scanner
+
+1. Get a Production keyset at [developer.ebay.com](https://developer.ebay.com) (Application Keysets). For the
+   "Marketplace Account Deletion" step, the app stores no eBay user accounts, only public listing summaries.
+2. Copy `.env.example` to `.env`, fill in `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`, restart the app.
+3. Source Manager → **eBay search profiles**: add search terms, exclusions, price range, listing types and a
+   frequency. Use **Run now** for a first test. Results appear in the Deal Scanner, matched and scored.
+
+The scanner uses the official Browse API (active listings only). It never buys, bids or watches, and it cannot
+see sold prices: eBay's sold-data API (Marketplace Insights) is Limited Release. Scans run only while the app is open.
 
 ### Backups
 

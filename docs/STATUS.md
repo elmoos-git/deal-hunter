@@ -31,7 +31,8 @@ All 15 have automated tests and pass (`python -m pytest`: 56 tests).
 | Command Centre | ✅ | KPIs and 7 charts from real records; reconciliation badge. Forecast cash flow ⬜. |
 | Product Database | ✅ | Create, search (name/alias/identifier/faction), aliases, EAN/UPC/ISBN, box contents with shared sprues, change history. Bulk edit ⬜, images ⬜, retail price history UI ⬜. |
 | Market Intelligence | ✅ | Sold/hammer/unsold/asking/retail observations, 30/90/180/365/all windows, condition groups, exclusions (edition, lots, unconfirmed offers, outliers), confidence with explanation, overrides that keep the computed value. |
-| Deal Scanner | 🟡 | Feed with filters/sort, scoring with explanation, budget warnings, save/watch/dismiss-with-reason/re-identify/mark purchased, price snapshots, dedupe. Listings come from manual entry, URL capture and CSV/JSON. **No automated marketplace scanning yet.** |
+| Deal Scanner | ✅ | Feed with filters/sort, scoring with explanation, budget warnings, save/watch/dismiss-with-reason/re-identify/mark purchased, price snapshots, dedupe. Listings come from the eBay scanner, manual entry, URL capture and CSV/JSON. |
+| eBay scanner | 🟡 | Official Browse API adapter: app token (cached, refreshed on 401), EBAY_GB marketplace, paging, polite pacing, retries on 429/5xx, clear errors for missing/bad keys. Search profiles with terms, exclusions, price range, listing types, new-only, UK delivery, frequency; background scheduler; run now; cancel; interrupted-job recovery. Tested against mocked responses only until real keys are added. |
 | Deal scoring | ✅ | Configurable weights and thresholds in Settings; caps for low/insufficient evidence and no profit. |
 | Auction & Listing Analyser | 🟡 | Itemised fee calculator (tiers, minimum premium, VAT, surcharge, lot fee, payment fee, shipping, FX), break-even / max safe / recommended max bid for profit, ROI or margin targets. Per-auctioneer saved profiles ⬜, auto-extraction of lot pages ⬜. |
 | Box Split Calculator | ✅ | Component values from the catalogue, editable prices, unsold %, copies, break-even units, whole vs split comparison. Real splits create inventory with an auditable cost allocation. |
@@ -40,7 +41,7 @@ All 15 have automated tests and pass (`python -m pytest`: 56 tests).
 | Sales | ✅ | Multi-line sales, fee estimate from profile or actual fees, refunds, returns (restock or damaged), cancellation. eBay report import ⬜. |
 | Finance & Analytics | ✅ | Ledger, capital in/withdrawals, overheads, transaction vs business profit, monthly table, reconciliation. Tax-year reports/accounting export ⬜. |
 | Imports | 🟡 | CSV/JSON for products (+contents), sold prices (label required), listings, purchases; review queue; duplicate protection. EML/email/mailbox ⬜. |
-| Source Manager | 🟡 | All requested sources listed with honest status, buyer-fee profile per source, scan job history. Only manual/CSV/local are “working”. |
+| Source Manager | 🟡 | All requested sources listed with honest status, buyer-fee profile per source, eBay search profiles, scan job history with cancel. eBay is “partial” (active listings only, no sold data); only manual/CSV/local are “working”. |
 | Settings | ✅ | Budget rules, selling-fee profiles (unverified defaults), scoring, valuation window, VAT flag, backup download. |
 | Global search, notifications, quick actions | ✅ | |
 | JSON API | 🟡 | `/api/dashboard`, `/api/products`, `/api/products/{id}/valuation`, `/api/opportunities`, `POST /api/listings` (for a future browser extension). Docs at `/api/docs`. |
@@ -48,7 +49,7 @@ All 15 have automated tests and pass (`python -m pytest`: 56 tests).
 
 ## Next (proposed order)
 
-1. eBay Browse API adapter + scheduled scans (needs Seb's eBay developer keys).
+1. ~~eBay Browse API adapter + scheduled scans~~ (built; verify with real keys).
 2. eBay order report import and saved-search email (EML) import.
 3. Per-auctioneer fee profiles and lot-page extraction where terms allow.
 4. Seed the real catalogue (start with the Combat Patrols / Battleforces Seb actually buys).

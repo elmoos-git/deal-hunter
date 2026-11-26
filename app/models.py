@@ -166,6 +166,28 @@ class ScanJob(Base):
     items_new: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text)
     params: Mapped[dict | None] = mapped_column(JSON)
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("search_profiles.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SearchProfile(Base):
+    """A saved search run against a source on a schedule."""
+    __tablename__ = "search_profiles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    source_key: Mapped[str] = mapped_column(String(60), default="ebay_uk")
+    query: Mapped[str] = mapped_column(String(300))  # eBay syntax: space = AND, (a, b) = OR
+    excluded_keywords: Mapped[str | None] = mapped_column(String(500))  # comma separated
+    max_price_p: Mapped[int | None] = mapped_column(Integer)
+    min_price_p: Mapped[int | None] = mapped_column(Integer)
+    listing_types: Mapped[str] = mapped_column(String(60), default="FIXED_PRICE,AUCTION")
+    new_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    uk_delivery: Mapped[bool] = mapped_column(Boolean, default=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"))
+    max_results: Mapped[int] = mapped_column(Integer, default=100)
+    frequency_min: Mapped[int] = mapped_column(Integer, default=360)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
