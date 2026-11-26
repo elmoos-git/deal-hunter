@@ -34,7 +34,7 @@ All 15 have automated tests and pass (`python -m pytest`: 56 tests).
 | Deal Scanner | ✅ | Feed with filters/sort, scoring with explanation, budget warnings, save/watch/dismiss-with-reason/re-identify/mark purchased, price snapshots, dedupe. Listings come from the eBay scanner, manual entry, URL capture and CSV/JSON. |
 | eBay scanner | 🟡 | Official Browse API adapter: app token (cached, refreshed on 401), EBAY_GB marketplace, paging, polite pacing, retries on 429/5xx, clear errors for missing/bad keys. Search profiles with terms, exclusions, price range, listing types, new-only, UK delivery, frequency; background scheduler; run now; cancel; interrupted-job recovery. Tested against mocked responses only until real keys are added. |
 | Deal scoring | ✅ | Configurable weights and thresholds in Settings; caps for low/insufficient evidence and no profit. |
-| Auction & Listing Analyser | 🟡 | Itemised fee calculator (tiers, minimum premium, VAT, surcharge, lot fee, payment fee, shipping, FX), break-even / max safe / recommended max bid for profit, ROI or margin targets. Per-auctioneer saved profiles ⬜, auto-extraction of lot pages ⬜. |
+| Auction & Listing Analyser | 🟡 | Itemised fee calculator (tiers, minimum premium, VAT, surcharge, lot fee, payment fee, shipping, FX), break-even / max safe / recommended max bid for profit, ROI or margin targets. Saved per-auction-house fee profiles (linked to a source, with terms URL and checked date) feed auction opportunity costs and a recommended max bid on the deal page. Auto-extraction of lot pages ⬜. |
 | Box Split Calculator | ✅ | Component values from the catalogue, editable prices, unsold %, copies, break-even units, whole vs split comparison. Real splits create inventory with an auditable cost allocation. |
 | Watchlist | 🟡 | Products with target cost → one-time alerts when a listing lands below target. Saved searches, quiet hours, auction-closing reminders ⬜. |
 | Inventory | ✅ | Statuses, cost basis with allocated costs, splits, adjustments/write-offs, ageing colours and suggestions (user decides), CSV export, item history. Photos ⬜. |
@@ -51,5 +51,5 @@ All 15 have automated tests and pass (`python -m pytest`: 56 tests).
 
 1. ~~eBay Browse API adapter + scheduled scans~~ (built; verify with real keys).
 2. eBay order report import and saved-search email (EML) import.
-3. Per-auctioneer fee profiles and lot-page extraction where terms allow.
+3. ~~Per-auctioneer fee profiles~~ (built); lot-page extraction where terms allow.
 4. Seed the real catalogue (start with the Combat Patrols / Battleforces Seb actually buys).

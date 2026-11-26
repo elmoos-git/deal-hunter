@@ -14,7 +14,7 @@ from app.money import CURRENCY_EXP, convert_minor, pct_of
 from app.services import catalogue, ledger
 from app.services import valuation as val
 from app.services.audit import all_settings
-from app.services.fees import selling_costs
+from app.services.fees import auction_cost, max_hammer, schedule_from_dict, selling_costs
 from app.services.safety import clean_text, safe_external_url
 
 INCOMPLETE_HINTS = re.compile(r"\b(incomplete|missing|spares|parts only|bits|unboxed|no box|damaged|broken|"
@@ -157,22 +157,46 @@ class Profitability:
     profit_expected_p: int | None
     roi_pct: float | None
     valuation: object | None
+    fee_profile: object | None = None
+    max_bid_p: int | None = None  # auctions with a fee profile: highest hammer meeting budget rules at conservative value
+    notes: list[str] = field(default_factory=list)
+
+
+def fee_profile_for(s: Session, source_key: str):
+    from app.models import AuctionFeeProfile
+    return s.scalar(select(AuctionFeeProfile).where(AuctionFeeProfile.source_key == source_key)
+                    .order_by(AuctionFeeProfile.updated_at.desc()))
 
 
 def profitability(s: Session, listing: MarketListing, settings: dict | None = None) -> Profitability:
     settings = settings or all_settings(s)
     src = listing.source
-    lines = [("Price", listing.price_p), ("Shipping", listing.shipping_p)]
-    buyer_fee = pct_of(listing.price_p, src.buyer_fee_bp) + (src.buyer_fee_fixed_p if src.buyer_fee_fixed_p else 0)
-    if buyer_fee:
-        lines.append(("Buyer fee (source profile)", buyer_fee))
+    notes: list[str] = []
+    fp = sch = None
+    if listing.listing_type == "auction":
+        fp = fee_profile_for(s, src.key)
+    if fp:
+        sch = schedule_from_dict(fp.schedule)
+        cost = auction_cost(listing.price_p, sch)
+        lines = [(k, v) for k, v in cost.lines() if v or k == "Hammer price"]
+        if listing.shipping_p and not sch.shipping_p:
+            lines.append(("Shipping (listing)", listing.shipping_p))
+        notes.append(f"Fees from “{fp.name}” profile; cost shown at the current bid, the final hammer will be higher.")
+    else:
+        lines = [("Price", listing.price_p), ("Shipping", listing.shipping_p)]
+        buyer_fee = pct_of(listing.price_p, src.buyer_fee_bp) + (src.buyer_fee_fixed_p if src.buyer_fee_fixed_p else 0)
+        if buyer_fee:
+            lines.append(("Buyer fee (source profile)", buyer_fee))
+        if listing.listing_type == "auction" and src.kind == "auction":
+            notes.append("No fee profile for this auction house: buyer's premium and VAT are NOT included. "
+                         "Add one in the Auction & Listing Analyser.")
     acq = sum(v for _, v in lines)
     v = None
     if listing.product_id:
         product = s.get(Product, listing.product_id)
         v = val.get_or_compute(s, product, listing.condition, settings.get("valuation_window_days", 90))
     if not v or v.confidence == "insufficient" or v.effective_expected_p is None:
-        return Profitability(acq, lines, None, None, None, None, None, None, v)
+        return Profitability(acq, lines, None, None, None, None, None, None, v, fp, None, notes)
     qty = listing.quantity
     exp_unit = v.effective_expected_p
     cons_unit = min(v.conservative_p or exp_unit, exp_unit)
@@ -182,8 +206,16 @@ def profitability(s: Session, listing: MarketListing, settings: dict | None = No
     cost_cons = qty * selling_costs(cons_unit, profile, post, pack).total_p
     profit_exp = qty * exp_unit - cost_exp - acq
     profit_cons = qty * cons_unit - cost_cons - acq
+    max_bid = None
+    if sch is not None:
+        budget = settings["budget"]
+        extra = listing.shipping_p if listing.shipping_p and not sch.shipping_p else 0
+        max_bid = max_hammer(qty * cons_unit - cost_cons - extra, sch, target_profit_p=budget["min_profit_p"],
+                             target_roi_pct=budget["min_roi_pct"])
+        notes.append("Max bid meets your minimum profit and ROI at the conservative valuation."
+                     if max_bid is not None else "No bid meets your minimum profit and ROI at the conservative valuation.")
     return Profitability(acq, lines, qty * cons_unit, qty * exp_unit, cost_exp, profit_cons, profit_exp,
-                         round(profit_exp * 100 / acq, 1) if acq else None, v)
+                         round(profit_exp * 100 / acq, 1) if acq else None, v, fp, max_bid, notes)
 
 
 def classify(score: int, thresholds: dict) -> str:
@@ -251,6 +283,10 @@ def score_listing(s: Session, listing: MarketListing, pf: Profitability, setting
     if v.confidence == "low":
         score = min(score, 54)
         expl.append("Low valuation confidence: capped at 54 (marginal)")
+    if listing.listing_type == "auction" and listing.source.kind == "auction" and pf.fee_profile is None:
+        warnings.append("Auction fees not included (no fee profile)")
+    if pf.max_bid_p is not None and listing.price_p > pf.max_bid_p:
+        warnings.append(f"Current bid is above your max bid (£{pf.max_bid_p/100:.2f})")
     # Purchasing rules
     cash = ledger.cash_balance(s)
     if pf.acquisition_p > cash:

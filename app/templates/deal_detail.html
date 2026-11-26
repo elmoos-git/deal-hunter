@@ -17,7 +17,10 @@
 <tr><td><b>Landed acquisition cost</b></td><td class="num"><b>{{ pf.acquisition_p|gbp }}</b></td></tr>
 <tr><td>Resale (conservative / expected) × {{ l.quantity }}</td><td class="num">{{ money(pf.resale_conservative_p) }} / {{ money(pf.resale_expected_p) }}</td></tr>
 <tr><td>Selling costs at expected (fees, postage, packaging)</td><td class="num">{{ money(pf.selling_costs_p) }}</td></tr>
-<tr><td><b>Expected net profit</b></td><td class="num"><b>{{ money(pf.profit_expected_p, True) }}</b></td></tr></table>
+<tr><td><b>Expected net profit</b></td><td class="num"><b>{{ money(pf.profit_expected_p, True) }}</b></td></tr>
+{% if pf.max_bid_p is not none %}<tr><td><b>Recommended max bid</b></td><td class="num pos"><b>{{ pf.max_bid_p|gbp }}</b></td></tr>{% endif %}</table>
+{% for n in pf.notes %}<p class="{{ 'warn' if 'NOT' in n or 'No bid' in n else 'faint' }}">{{ n }}</p>{% endfor %}
+{% if l.listing_type == 'auction' %}<p><a class="btn sm" href="/analyser?{{ {'profile_id': pf.fee_profile.id if pf.fee_profile else '', 'bid': '%.2f'|format(l.price_p/100), 'resale': '%.2f'|format(pf.resale_expected_p/100) if pf.resale_expected_p else '', 'conservative': '%.2f'|format(pf.resale_conservative_p/100) if pf.resale_conservative_p else ''}|urlencode }}">Open in auction analyser</a></p>{% endif %}
 {% if pf.valuation %}<p class="faint">Valuation: {{ pf.valuation.n_comparables }} comps, {{ pf.valuation.window_days or 'all' }}-day window. {% for e in pf.valuation.explanation %}{{ e }} {% endfor %}</p>{% endif %}</div>
 </div>
 <div class="grid g3" style="margin-top:12px">

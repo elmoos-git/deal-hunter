@@ -2,6 +2,13 @@
 {% block content %}
 <h1>Auction & Listing Analyser</h1><p class="sub">Itemised landed cost and maximum bid. Enter the fee terms from the auctioneer's own conditions of sale for this auction — fees differ by house and sale, so there is no universal default.</p>
 {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+<div class="panel" style="margin-bottom:12px"><div class="spread"><h2>Saved auction house fee profiles</h2>
+<form class="row" method="get"><select name="profile_id"><option value="">— Load a profile —</option>{% for x in profiles %}<option value="{{ x.id }}" {{ 'selected' if fp and fp.id==x.id }}>{{ x.name }}</option>{% endfor %}</select><button class="sm">Load</button></form></div>
+<table><tr><th>House</th><th>Linked source</th><th>Terms</th><th>Checked</th><th></th></tr>
+{% for x in profiles %}<tr><td><a href="/analyser?profile_id={{ x.id }}">{{ x.name }}</a></td><td>{{ x.source_key or '—' }}</td><td class="faint">{{ summaries[x.id] }}{% if x.terms_url %} · <a href="{{ x.terms_url }}" target="_blank" rel="noopener noreferrer nofollow">source ↗</a>{% endif %}</td>
+<td class="mono {{ 'warn' if not x.checked_on }}">{{ x.checked_on|d if x.checked_on else 'never' }}</td>
+<td><form method="post" action="/analyser/profiles/{{ x.id }}/delete" data-confirm="Delete the {{ x.name }} fee profile?"><button class="sm danger">Delete</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="empty">No profiles yet. Fill in an auction house's terms below and save them; auction opportunities from a linked source will then include those fees automatically.</td></tr>{% endfor %}</table></div>
 <div class="grid g2">
 <form class="panel" method="get"><h2>Lot & fee terms</h2><div class="form">
 <label>Auction house<input name="house" value="{{ q.get('house','') }}"></label>
@@ -26,6 +33,13 @@
 <label>Target ROI %<input name="target_roi" value="{{ q.get('target_roi','') }}"></label>
 <label>Target margin %<input name="target_margin" value="{{ q.get('target_margin','') }}"></label>
 <button class="primary">Calculate</button></div>
+<details style="margin-top:12px" {{ 'open' if fp }}><summary>Save these fee terms as a profile</summary><div class="form" style="margin-top:8px">
+<label>Linked source (auction opportunities use it)<select name="source_key"><option value="">— none —</option>{% for sr in srcs %}<option value="{{ sr.key }}" {{ 'selected' if fp and fp.source_key==sr.key }}>{{ sr.name }}</option>{% endfor %}</select></label>
+<label>Terms page URL<input name="terms_url" value="{{ fp.terms_url or '' if fp else '' }}"></label>
+<label>Terms checked on<input type="date" name="checked_on" value="{{ fp.checked_on if fp and fp.checked_on else today }}"></label>
+<label class="wide">Notes<input name="notes" value="{{ fp.notes or '' if fp else '' }}"></label>
+<button formaction="/analyser/profiles" formmethod="post">Save profile (uses the house name above)</button></div>
+<p class="faint">Only the fee fields are saved, not the bid or resale values. Saving re-costs open auction opportunities from the linked source.</p></details>
 <p class="faint">Resale is after the selling-fee profile in Settings, default postage and packaging. Max bids ignore bid increments and reserves.</p></form>
 <div class="panel">{% if result %}{% set c = result.cost %}
 <h2>Landed cost at {{ c.hammer_p|gbp }} hammer</h2><table>{% for k, v in c.lines() %}{% if v %}<tr><td>{{ k }}</td><td class="num">{{ v|gbp }}</td></tr>{% endif %}{% endfor %}

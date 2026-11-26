@@ -163,3 +163,27 @@ def schedule_from_dict(d: dict) -> AuctionFeeSchedule:
     tiers = [PremiumTier(t.get("up_to_p"), int(t["rate_bp"])) for t in d.get("premium_tiers", [])] or [PremiumTier(None, 0)]
     kw = {k: v for k, v in d.items() if k != "premium_tiers" and k in AuctionFeeSchedule.__dataclass_fields__}
     return AuctionFeeSchedule(premium_tiers=tiers, **kw)
+
+
+def schedule_to_dict(sch: AuctionFeeSchedule) -> dict:
+    d = asdict(sch)
+    d["premium_tiers"] = [{"up_to_p": t.up_to_p, "rate_bp": t.rate_bp} for t in sch.premium_tiers]
+    return d
+
+
+def describe(sch: AuctionFeeSchedule) -> str:
+    """Short human summary, e.g. '25% + VAT premium, 3% + VAT online, £1.50/lot'."""
+    tiers = ", ".join(f"{t.rate_bp/100:g}%" + (f" to £{t.up_to_p/100:,.0f}" if t.up_to_p else "") for t in sch.premium_tiers)
+    out = [f"premium {tiers}" + (" + VAT" if sch.vat_on_premium else "")]
+    if sch.min_premium_p:
+        out.append(f"min £{sch.min_premium_p/100:.2f}")
+    if sch.online_surcharge_bp or sch.online_surcharge_fixed_p:
+        out.append(f"online {sch.online_surcharge_bp/100:g}%" + (f" + £{sch.online_surcharge_fixed_p/100:.2f}" if sch.online_surcharge_fixed_p else "")
+                   + (" + VAT" if sch.vat_on_surcharge else ""))
+    if sch.vat_on_hammer:
+        out.append("VAT on hammer")
+    if sch.per_lot_fee_p:
+        out.append(f"£{sch.per_lot_fee_p/100:.2f}/lot")
+    if sch.payment_fee_bp:
+        out.append(f"card {sch.payment_fee_bp/100:g}%")
+    return ", ".join(out)

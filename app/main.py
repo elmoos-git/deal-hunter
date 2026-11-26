@@ -32,7 +32,7 @@ from app.services import catalogue, deals, ebay, finance, imports, inventory, le
 from app.services.scanning import Scheduler
 from app.services import valuation as val
 from app.services.audit import DEFAULT_SETTINGS, all_settings, set_setting
-from app.services.fees import AuctionFeeSchedule, PremiumTier, auction_cost, max_hammer, selling_costs
+from app.services.fees import AuctionFeeSchedule, PremiumTier, auction_cost, max_hammer, schedule_from_dict, selling_costs
 from app.services.safety import UnsafeURL, fetch_listing_metadata
 from app.services.sources import seed_sources
 
@@ -90,7 +90,8 @@ def create_app(database_url: str | None = None, scheduler: bool | None = None) -
     def go(path: str, msg: str | None = None, err: str | None = None) -> RedirectResponse:
         q = {k: v for k, v in (("msg", msg), ("err", err)) if v}
         path, _, frag = path.partition("#")
-        return RedirectResponse(path + ("?" + urlencode(q) if q else "") + ("#" + frag if frag else ""), status_code=303)
+        sep = "&" if "?" in path else "?"
+        return RedirectResponse(path + (sep + urlencode(q) if q else "") + ("#" + frag if frag else ""), status_code=303)
 
     async def form(request: Request) -> dict:
         f = await request.form()
@@ -425,27 +426,51 @@ def create_app(database_url: str | None = None, scheduler: bool | None = None) -
                       recent=recent, group_labels=val.GROUP_LABELS, products=sorted(prods.values(), key=lambda x: x.name))
 
     # ---------------- Analyser ----------------
+    def schedule_from_form(qp) -> AuctionFeeSchedule:
+        tiers = []
+        for i in range(3):
+            rate = qp.get(f"t{i}_rate")
+            if rate:
+                upto = qp.get(f"t{i}_upto")
+                tiers.append(PremiumTier(p(upto) if upto else None, int(round(float(rate) * 100))))
+        return AuctionFeeSchedule(
+            name=qp.get("house") or "Custom", premium_tiers=tiers or [PremiumTier(None, 0)],
+            premium_marginal=qp.get("marginal", "1") == "1", min_premium_p=p(qp.get("min_premium"), 0),
+            vat_on_premium=qp.get("vat_premium", "1") == "1", vat_on_hammer=qp.get("vat_hammer") == "1",
+            online_surcharge_bp=int(round(float(qp.get("surcharge") or 0) * 100)),
+            online_surcharge_fixed_p=p(qp.get("surcharge_fixed"), 0), vat_on_surcharge=qp.get("vat_surcharge", "1") == "1",
+            per_lot_fee_p=p(qp.get("lot_fee"), 0), payment_fee_bp=int(round(float(qp.get("payment_fee") or 0) * 100)),
+            shipping_p=p(qp.get("shipping"), 0), collection_p=p(qp.get("collection"), 0),
+            fx_and_import_p=p(qp.get("fx_import"), 0))
+
+    def form_from_schedule(name: str, d: dict) -> dict:
+        m = lambda v: f"{v/100:.2f}" if v else ""
+        out = {"house": name, "marginal": "1" if d.get("premium_marginal", True) else "0",
+               "min_premium": m(d.get("min_premium_p")), "vat_premium": "1" if d.get("vat_on_premium") else "0",
+               "vat_hammer": "1" if d.get("vat_on_hammer") else "0",
+               "surcharge": f"{d.get('online_surcharge_bp', 0)/100:g}" if d.get("online_surcharge_bp") else "",
+               "surcharge_fixed": m(d.get("online_surcharge_fixed_p")), "vat_surcharge": "1" if d.get("vat_on_surcharge") else "0",
+               "lot_fee": m(d.get("per_lot_fee_p")), "payment_fee": f"{d.get('payment_fee_bp', 0)/100:g}" if d.get("payment_fee_bp") else "",
+               "shipping": m(d.get("shipping_p")), "collection": m(d.get("collection_p")), "fx_import": m(d.get("fx_and_import_p"))}
+        for i, tier in enumerate(d.get("premium_tiers", [])[:3]):
+            out[f"t{i}_rate"] = f"{tier['rate_bp']/100:g}"
+            out[f"t{i}_upto"] = m(tier.get("up_to_p"))
+        return out
+
     @app.get("/analyser", response_class=HTMLResponse)
     def analyser(request: Request, s: Session = Depends(db)):
-        qp = request.query_params
+        from app.models import AuctionFeeProfile
+        from app.services.fees import describe
+        profiles = list(s.scalars(select(AuctionFeeProfile).order_by(AuctionFeeProfile.name)))
+        fp = s.get(AuctionFeeProfile, int(request.query_params["profile_id"])) if request.query_params.get("profile_id") else None
+        qp = {**(form_from_schedule(fp.name, fp.schedule) if fp else {}), **{k: v for k, v in request.query_params.items() if v != "" or not fp}}
+        ctx = dict(title="Auction & Listing Analyser", q=qp, profiles=profiles, fp=fp,
+                   summaries={x.id: describe(schedule_from_dict(x.schedule)) for x in profiles},
+                   srcs=list(s.scalars(select(Source).where(Source.kind == "auction").order_by(Source.name))))
         result = None
         if qp.get("resale"):
             try:
-                tiers = []
-                for i in range(3):
-                    rate = qp.get(f"t{i}_rate")
-                    if rate:
-                        upto = qp.get(f"t{i}_upto")
-                        tiers.append(PremiumTier(p(upto) if upto else None, int(round(float(rate) * 100))))
-                sch = AuctionFeeSchedule(
-                    name=qp.get("house") or "Custom", premium_tiers=tiers or [PremiumTier(None, 0)],
-                    premium_marginal=qp.get("marginal") == "1", min_premium_p=p(qp.get("min_premium"), 0),
-                    vat_on_premium=qp.get("vat_premium") == "1", vat_on_hammer=qp.get("vat_hammer") == "1",
-                    online_surcharge_bp=int(round(float(qp.get("surcharge") or 0) * 100)),
-                    online_surcharge_fixed_p=p(qp.get("surcharge_fixed"), 0), vat_on_surcharge=qp.get("vat_surcharge") == "1",
-                    per_lot_fee_p=p(qp.get("lot_fee"), 0), payment_fee_bp=int(round(float(qp.get("payment_fee") or 0) * 100)),
-                    shipping_p=p(qp.get("shipping"), 0), collection_p=p(qp.get("collection"), 0),
-                    fx_and_import_p=p(qp.get("fx_import"), 0))
+                sch = schedule_from_form(qp)
                 st = all_settings(s)
                 prof = st["selling_profiles"][st["selling_profile"]]
                 post, pack = st["default_postage_p"], st["default_packaging_p"]
@@ -468,8 +493,52 @@ def create_app(database_url: str | None = None, scheduler: bool | None = None) -
                     "margin": round((scen["resale"][1] - cost.total_p) * 100 / scen["resale"][0], 1) if scen["resale"][0] else None,
                 }
             except (ValueError, MoneyError) as e:
-                return render(request, s, "analyser.html", title="Auction & Listing Analyser", q=qp, result=None, error=str(e))
-        return render(request, s, "analyser.html", title="Auction & Listing Analyser", q=qp, result=result, error=None)
+                return render(request, s, "analyser.html", **ctx, result=None, error=str(e))
+        return render(request, s, "analyser.html", **ctx, result=result, error=None)
+
+    @app.post("/analyser/profiles")
+    async def fee_profile_save(request: Request, s: Session = Depends(db)):
+        from app.models import AuctionFeeProfile
+        from app.services.fees import schedule_to_dict
+        f = await form(request)
+        name = (f.get("house") or "").strip()
+        if not name:
+            return go("/analyser", err="Give the auction house a name to save its fee terms")
+        try:
+            sch = schedule_from_form(f)
+            terms = f.get("terms_url") or None
+            if terms:
+                from app.services.safety import safe_external_url
+                terms = safe_external_url(terms)
+            fp = s.scalar(select(AuctionFeeProfile).where(AuctionFeeProfile.name == name))
+            if fp is None:
+                fp = AuctionFeeProfile(name=name)
+                s.add(fp)
+            fp.schedule, fp.source_key, fp.terms_url = schedule_to_dict(sch), f.get("source_key") or None, terms
+            fp.checked_on = date.fromisoformat(f["checked_on"]) if f.get("checked_on") else None
+            fp.notes = f.get("notes") or None
+            s.flush()
+            from app.services.audit import audit
+            audit(s, "auction_fee_profile", fp.id, "save", fp.schedule)
+            # Re-cost open auction opportunities from this house with the new terms
+            if fp.source_key:
+                for o in s.scalars(select(DealOpportunity).join(MarketListing).join(Source).where(
+                        Source.key == fp.source_key, MarketListing.listing_type == "auction",
+                        DealOpportunity.status.in_(("new", "saved", "watching")))):
+                    deals.evaluate(s, o.listing)
+            s.commit()
+        except (ValueError, MoneyError, UnsafeURL) as e:
+            s.rollback()
+            return go("/analyser", err=str(e))
+        return go(f"/analyser?profile_id={fp.id}", f"Fee profile “{fp.name}” saved")
+
+    @app.post("/analyser/profiles/{fid}/delete")
+    def fee_profile_delete(fid: int, s: Session = Depends(db)):
+        from app.models import AuctionFeeProfile
+        fp = s.get(AuctionFeeProfile, fid) or _404()
+        s.delete(fp)
+        s.commit()
+        return go("/analyser", "Fee profile deleted")
 
     # ---------------- Box split ----------------
     @app.get("/split", response_class=HTMLResponse)
