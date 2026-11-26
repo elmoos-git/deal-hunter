@@ -1,11 +1,33 @@
 {% extends "base.html" %}{% from "_macros.html" import status as st %}
 {% block content %}
-<h1>Source Manager</h1><p class="sub">Honest status of every sourcing channel. “Working” means usable today. No source is scanned automatically yet: the adapter framework, job history and retries exist, and the first automated adapter (eBay Browse API) is next.</p>
+<h1>Source Manager</h1><p class="sub">Honest status of every sourcing channel. “Working” means usable today. eBay UK is scanned automatically through the official Browse API once your developer keys are in <span class="mono">.env</span>; every other source is manual, CSV or planned.</p>
+<div class="panel" id="profiles" style="margin-bottom:12px"><div class="spread"><h2>eBay search profiles</h2>
+{% if ebay_ready %}<span class="badge b-green">eBay keys found</span>{% else %}<span class="badge b-amber">eBay keys missing: add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env and restart</span>{% endif %}</div>
+<p class="faint">Each profile runs on its schedule (minimum every 15 minutes) while the app is open. Results land in the Deal Scanner, matched and scored; repeat scans update listings instead of duplicating them. Searches read active listings only: nothing is bought, bid on or watched on eBay.</p>
+<div class="scroll"><table><tr><th>Name</th><th>Search terms</th><th>Excluding</th><th class="num">Price range</th><th>Types</th><th>Every</th><th>Last run</th><th>Status</th><th></th></tr>
+{% for pr in profiles %}<tr><td>{{ pr.name }}</td><td class="mono">{{ pr.query }}</td><td class="faint">{{ pr.excluded_keywords or '—' }}</td>
+<td class="num">{{ (pr.min_price_p|gbp) if pr.min_price_p else '£0' }}–{{ (pr.max_price_p|gbp) if pr.max_price_p else 'any' }}</td><td class="faint">{{ pr.listing_types|lower|replace('_',' ')|replace(',',', ') }}{{ ', new only' if pr.new_only }}</td>
+<td>{{ pr.frequency_min }} min</td><td class="mono">{{ pr.last_run_at|dt }}</td><td>{% if pr.id in running %}<span class="badge b-cyan">scanning</span>{% elif pr.enabled %}<span class="badge b-green">on</span>{% else %}<span class="badge">paused</span>{% endif %}</td>
+<td class="row"><form method="post" action="/profiles/{{ pr.id }}/run"><button class="sm" {{ 'disabled' if not ebay_ready }}>Run now</button></form>
+<form method="post" action="/profiles/{{ pr.id }}/toggle"><button class="sm">{{ 'Pause' if pr.enabled else 'Enable' }}</button></form>
+<form method="post" action="/profiles/{{ pr.id }}/delete" data-confirm="Delete this search profile? Listings it found are kept."><button class="sm danger">Delete</button></form></td></tr>
+{% else %}<tr><td colspan="9" class="empty">No search profiles yet. Add one below.</td></tr>{% endfor %}</table></div>
+<form class="form" method="post" action="/profiles/new" style="margin-top:12px">
+<label class="wide">Search terms (space = AND, (a, b) = OR)<input name="query" list="sugg" required placeholder="warhammer combat patrol sealed"><datalist id="sugg">{% for q in suggestions %}<option value="{{ q }}">{% endfor %}</datalist></label>
+<label>Name<input name="name" placeholder="optional"></label>
+<label>Exclude words (comma separated)<input name="excluded" placeholder="painted, proxy, 3d print, stl"></label>
+<label>Min price (£)<input name="min_price"></label><label>Max price (£)<input name="max_price"></label>
+<label>Listing types<span class="row"><span><input type="checkbox" name="listing_types" value="FIXED_PRICE" checked> Buy it now</span><span><input type="checkbox" name="listing_types" value="AUCTION" checked> Auction</span></span></label>
+<label>Condition<select name="new_only"><option value="0">Any</option><option value="1">New only</option></select></label>
+<label>Delivers to UK<select name="uk_delivery"><option value="1">Yes</option><option value="0">Any</option></select></label>
+<label>Every (minutes)<input name="frequency_min" type="number" min="15" value="360"></label><label>Max results per scan<input name="max_results" type="number" min="1" max="1000" value="100"></label>
+<label class="wide">Link to product (optional: treats every result as this product)<select name="product_id"><option value="">Auto-match each listing</option>{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+<button class="primary">Add search profile</button></form></div>
 <div class="panel scroll"><table><tr><th>Source</th><th>Kind</th><th>Country</th><th>Methods</th><th>Status</th><th>Enabled</th><th>Auth needed</th><th>Last success</th><th>Last attempt</th><th class="num">Listings</th><th>Error</th><th>Buyer fee profile</th></tr>
 {% for s in srcs %}<tr><td><b>{{ s.name }}</b><div class="faint" style="max-width:360px">{{ s.status_note }}</div></td><td>{{ s.kind }}</td><td>{{ s.country }}</td><td class="faint">{{ s.methods|replace(',', ', ')|replace('_',' ') }}</td><td>{{ st(s.status) }}</td><td>{{ 'yes' if s.enabled else 'no' }}</td><td class="faint">{{ s.auth_required or '—' }}</td>
 <td class="mono">{{ s.last_success_at|dt }}</td><td class="mono">{{ s.last_attempt_at|dt }}</td><td class="num">{{ s.listings_found }}</td><td class="neg">{{ s.last_error or '' }}</td>
 <td><form class="row" method="post" action="/sources/{{ s.id }}/fees"><input name="bp" value="{{ s.buyer_fee_bp/100 }}" style="width:52px" title="% of price">%<input name="fixed" value="{{ '%.2f'|format(s.buyer_fee_fixed_p/100) }}" style="width:58px" title="fixed £">£<button class="sm">Save</button></form></td></tr>{% endfor %}</table></div>
-<div class="panel" style="margin-top:12px"><h2>Scan job history</h2><table><tr><th>#</th><th>Source</th><th>Status</th><th>Attempts</th><th>Started</th><th>Finished</th><th class="num">Seen</th><th class="num">New</th><th>Error</th></tr>
-{% for j in jobs %}<tr><td class="mono">{{ j.id }}</td><td>{{ j.source_id }}</td><td>{{ st(j.status) }}</td><td>{{ j.attempts }}</td><td class="mono">{{ j.started_at|dt }}</td><td class="mono">{{ j.finished_at|dt }}</td><td class="num">{{ j.items_seen }}</td><td class="num">{{ j.items_new }}</td><td class="neg">{{ j.error or '' }}</td></tr>
-{% else %}<tr><td colspan="9" class="empty">No scans have run. Automated scanning starts with the eBay Browse API adapter (needs your developer keys).</td></tr>{% endfor %}</table></div>
+<div class="panel" style="margin-top:12px" id="jobs"><h2>Scan job history</h2><table><tr><th>#</th><th>Source</th><th>Profile</th><th>Status</th><th>Attempts</th><th>Started</th><th>Finished</th><th class="num">Seen</th><th class="num">New</th><th>Error</th><th></th></tr>
+{% for j in jobs %}<tr><td class="mono">{{ j.id }}</td><td>{{ src_names.get(j.source_id, j.source_id) }}</td><td>{{ (profiles|selectattr('id','equalto',j.profile_id)|map(attribute='name')|first) or '—' }}</td><td>{{ st(j.status) }}</td><td>{{ j.attempts }}</td><td class="mono">{{ j.started_at|dt }}</td><td class="mono">{{ j.finished_at|dt }}</td><td class="num">{{ j.items_seen }}</td><td class="num">{{ j.items_new }}</td><td class="neg">{{ j.error or '' }}</td><td>{% if j.status == 'running' %}<form method="post" action="/scans/{{ j.id }}/cancel"><button class="sm danger">Cancel</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="11" class="empty">No scans have run yet.</td></tr>{% endfor %}</table></div>
 {% endblock %}

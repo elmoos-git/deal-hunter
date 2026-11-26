@@ -5,6 +5,8 @@ import csv
 import io
 import json
 import logging
+import os
+import threading
 import sqlite3
 import tempfile
 from datetime import date, datetime
@@ -23,10 +25,11 @@ from app.db import migrate, session_factory
 from app.models import (
     CONDITION_LABELS, CONDITIONS, INVENTORY_STATUSES, Alert, AuditEvent, CostAllocation, DealOpportunity, Expense,
     FinancialTransaction, ImportJob, ImportReview, InventoryItem, MarketListing, Product, PurchaseOrder, SalesOrder,
-    ScanJob, SoldObservation, Source, Valuation, WatchlistEntry,
+    ScanJob, SearchProfile, SoldObservation, Source, Valuation, WatchlistEntry,
 )
 from app.money import MoneyError, fmt, to_pence
-from app.services import catalogue, deals, finance, imports, inventory, ledger, purchasing, sales
+from app.services import catalogue, deals, ebay, finance, imports, inventory, ledger, purchasing, sales, scanning
+from app.services.scanning import Scheduler
 from app.services import valuation as val
 from app.services.audit import DEFAULT_SETTINGS, all_settings, set_setting
 from app.services.fees import AuctionFeeSchedule, PremiumTier, auction_cost, max_hammer, selling_costs
@@ -45,7 +48,7 @@ NAV = [
 ]
 
 
-def create_app(database_url: str | None = None) -> FastAPI:
+def create_app(database_url: str | None = None, scheduler: bool | None = None) -> FastAPI:
     cfg = get_settings()
     url = database_url or cfg.database_url
     migrate(url)
@@ -54,6 +57,11 @@ def create_app(database_url: str | None = None) -> FastAPI:
         seed_sources(s)
         s.commit()
     is_demo = cfg.is_demo if database_url is None else ("demo" in Path(url).name)
+    ebay.register()
+    if scheduler is None:
+        scheduler = database_url is None and os.environ.get("DEAL_HUNTER_SCHEDULER", "1") != "0"
+    if scheduler:
+        Scheduler(factory).start()
 
     app = FastAPI(title="Gaming Collectibles Deal Hunter", docs_url="/api/docs", redoc_url=None)
     app.mount("/static", StaticFiles(directory=ROOT / "app" / "static"), name="static")
@@ -81,7 +89,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
 
     def go(path: str, msg: str | None = None, err: str | None = None) -> RedirectResponse:
         q = {k: v for k, v in (("msg", msg), ("err", err)) if v}
-        return RedirectResponse(path + ("?" + urlencode(q) if q else ""), status_code=303)
+        path, _, frag = path.partition("#")
+        return RedirectResponse(path + ("?" + urlencode(q) if q else "") + ("#" + frag if frag else ""), status_code=303)
 
     async def form(request: Request) -> dict:
         f = await request.form()
@@ -798,7 +807,70 @@ def create_app(database_url: str | None = None) -> FastAPI:
     def sources_page(request: Request, s: Session = Depends(db)):
         srcs = list(s.scalars(select(Source).order_by(Source.status.desc(), Source.kind, Source.name)))
         jobs = list(s.scalars(select(ScanJob).order_by(desc(ScanJob.id)).limit(30)))
-        return render(request, s, "sources.html", title="Source Manager", srcs=srcs, jobs=jobs)
+        profiles = list(s.scalars(select(SearchProfile).order_by(SearchProfile.name)))
+        names = {x.id: x.name for x in srcs}
+        return render(request, s, "sources.html", title="Source Manager", srcs=srcs, jobs=jobs, profiles=profiles,
+                      src_names=names, ebay_ready=ebay.is_configured(), suggestions=scanning.SUGGESTED_QUERIES,
+                      products=list(s.scalars(select(Product).order_by(Product.name))),
+                      running={j.profile_id for j in jobs if j.status == "running"})
+
+    @app.post("/profiles/new")
+    async def profile_new(request: Request, s: Session = Depends(db)):
+        raw = await request.form()
+        f = {k: v.strip() for k, v in raw.items() if isinstance(v, str)}
+        if not f.get("query"):
+            return go("/sources#profiles", err="Search terms are required")
+        types = ",".join(raw.getlist("listing_types")) or "FIXED_PRICE"
+        try:
+            s.add(SearchProfile(name=f.get("name") or f["query"][:120], source_key="ebay_uk", query=f["query"][:300],
+                                excluded_keywords=f.get("excluded") or None, max_price_p=p(f.get("max_price")),
+                                min_price_p=p(f.get("min_price")), listing_types=types, new_only=f.get("new_only") == "1",
+                                uk_delivery=f.get("uk_delivery", "1") == "1",
+                                product_id=int(f["product_id"]) if f.get("product_id") else None,
+                                max_results=max(1, min(int(f.get("max_results") or 100), 1000)),
+                                frequency_min=max(15, int(f.get("frequency_min") or 360))))
+            s.commit()
+        except (ValueError, MoneyError) as e:
+            s.rollback()
+            return go("/sources#profiles", err=str(e))
+        return go("/sources#profiles", "Search profile saved")
+
+    @app.post("/profiles/{pid}/toggle")
+    def profile_toggle(pid: int, s: Session = Depends(db)):
+        pr = s.get(SearchProfile, pid) or _404()
+        pr.enabled = not pr.enabled
+        s.commit()
+        return go("/sources#profiles", f"{pr.name}: {'enabled' if pr.enabled else 'paused'}")
+
+    @app.post("/profiles/{pid}/delete")
+    def profile_delete(pid: int, s: Session = Depends(db)):
+        pr = s.get(SearchProfile, pid) or _404()
+        s.delete(pr)
+        s.commit()
+        return go("/sources#profiles", "Search profile deleted (its past scans and listings are kept)")
+
+    @app.post("/profiles/{pid}/run")
+    def profile_run(pid: int, s: Session = Depends(db)):
+        pr = s.get(SearchProfile, pid) or _404()
+        if scanning.is_running(s, pid):
+            return go("/sources#jobs", err="That profile is already scanning")
+
+        def work():
+            with factory() as s2:
+                try:
+                    scanning.run_profile(s2, s2.get(SearchProfile, pid))
+                except Exception as e:
+                    log.error(f"manual scan {pid} crashed: {e}")
+        threading.Thread(target=work, daemon=True).start()
+        return go("/sources#jobs", f"Scan started for “{pr.name}”. Refresh this page to see progress.")
+
+    @app.post("/scans/{jid}/cancel")
+    def scan_cancel(jid: int, s: Session = Depends(db)):
+        from app.services.sources import cancel_scan
+        job = s.get(ScanJob, jid) or _404()
+        cancel_scan(s, job)
+        s.commit()
+        return go("/sources#jobs", "Cancellation requested; the scan stops before its next listing")
 
     @app.post("/sources/{sid}/fees")
     async def source_fees(sid: int, request: Request, s: Session = Depends(db)):

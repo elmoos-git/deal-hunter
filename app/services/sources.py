@@ -17,8 +17,8 @@ SOURCES = [
     ("manual", "Manual entry", "manual", "GB", "manual", W, "Type in any listing or private deal.", None),
     ("csv", "CSV / JSON import", "manual", "GB", "csv", W, "Import listings exported or collected from any source.", None),
     ("ebay_uk", "eBay UK", "marketplace", "GB", "official_api,manual_url,email_alerts,csv", P,
-     "Manual/CSV work now. Browse API adapter (active listings) is Phase 3 and needs your eBay developer keys. "
-     "Sold-price API (Marketplace Insights) is Limited Release: not available without eBay approval.",
+     "Browse API adapter built: scheduled search profiles find active Buy It Now and auction listings (needs your "
+     "eBay developer keys in .env). Sold prices are NOT available via API: Marketplace Insights is Limited Release.",
      "eBay developer app keys (EBAY_CLIENT_ID / EBAY_CLIENT_SECRET)"),
     ("ebay_product_research", "eBay Product Research (Terapeak)", "research", "GB", "manual_verified", P,
      "Free in Seller Hub, up to 3 years of eBay sales. No public API found: record verified comps by hand or CSV.",
@@ -64,9 +64,12 @@ SOURCES = [
 
 
 def seed_sources(s: Session) -> None:
-    existing = {k for (k,) in s.execute(select(Source.key))}
+    """Insert new sources and keep descriptive fields of known ones current (user settings are left alone)."""
+    existing = {src.key: src for src in s.scalars(select(Source))}
     for key, name, kind, country, methods, status, note, auth in SOURCES:
         if key in existing:
+            src = existing[key]
+            src.name, src.methods, src.status, src.status_note, src.auth_required = name, methods, status, note, auth
             continue
         s.add(Source(key=key, name=name, kind=kind, country=country, methods=methods, status=status, status_note=note,
                      enabled=status == W, auth_required=auth))
@@ -101,17 +104,22 @@ class ScanOutcome:
 
 
 def run_scan(s: Session, source_key: str, params: dict | None = None, adapter: SourceAdapter | None = None,
-             backoff_s: float = 0.0) -> ScanOutcome:
-    """Run one scan job with retries. Failures are stored on the job and the source, never swallowed."""
+             backoff_s: float = 0.0, profile_id: int | None = None) -> ScanOutcome:
+    """Run one scan job with retries. Failures are stored on the job and the source, never swallowed.
+
+    Each listing is committed as it is ingested (incremental: a later failure keeps earlier results, and ingestion is
+    idempotent so a retry never duplicates). Cancellation from another request is checked between listings."""
     from app.services.deals import ingest
+    from app.services.safety import UnsafeURL
 
     source = s.scalar(select(Source).where(Source.key == source_key))
     if source is None:
         raise ValueError(f"Unknown source {source_key}")
-    job = ScanJob(source_id=source.id, status="running", started_at=utcnow(), params=params or {})
+    job = ScanJob(source_id=source.id, status="running", started_at=utcnow(), params=params or {},
+                  profile_id=profile_id)
     s.add(job)
-    s.flush()
     source.last_attempt_at = utcnow()
+    s.commit()
     if adapter is None:
         factory = ADAPTERS.get(source_key)
         if factory is None:
@@ -119,38 +127,57 @@ def run_scan(s: Session, source_key: str, params: dict | None = None, adapter: S
             source.last_error = job.error
             s.commit()
             return ScanOutcome(job, 0, 0)
-        adapter = factory()
+        try:
+            adapter = factory()
+        except Exception as e:  # e.g. missing API keys: visible on the job and the source
+            job.status, job.error, job.finished_at = "failed", str(e)[:1000], utcnow()
+            source.last_error = job.error
+            s.commit()
+            return ScanOutcome(job, 0, 0)
+    new = seen = skipped = 0
     while True:
         job.attempts += 1
+        s.commit()
         try:
-            new = seen = 0
-            with s.begin_nested():
-                for item in adapter.fetch(params or {}):
-                    s.refresh(job)
-                    if job.status == "cancelled":
-                        break
-                    seen += 1
+            for item in adapter.fetch(params or {}):
+                s.expire(job)
+                if job.status == "cancelled":
+                    break
+                seen += 1
+                try:
                     if ingest(s, item).created:
                         new += 1
+                    s.commit()
+                except (ValueError, UnsafeURL) as e:  # one bad listing never sinks the scan
+                    s.rollback()
+                    skipped += 1
+                    job.error = f"Skipped listing: {e}"[:500]
+                job.items_seen, job.items_new = seen, new
+            s.expire(job)
             if job.status != "cancelled":
                 job.status = "succeeded"
-            job.items_seen, job.items_new = seen, new
+                if not skipped:
+                    job.error = None
             source.last_success_at, source.last_error = utcnow(), None
             break
         except TransientError as e:
+            s.rollback()
             job.error = f"Attempt {job.attempts}: {e}"
             if job.attempts >= job.max_attempts:
                 job.status = "failed"
                 source.last_error = job.error
                 break
+            s.commit()
             time.sleep(backoff_s * (2 ** (job.attempts - 1)))
         except Exception as e:  # permanent failure: record and stop
-            job.status, job.error = "failed", f"{type(e).__name__}: {e}"
+            s.rollback()
+            job.status, job.error = "failed", f"{type(e).__name__}: {e}"[:1000]
             source.last_error = job.error
             break
+    job.items_seen, job.items_new = seen, new
     job.finished_at = utcnow()
     s.commit()
-    return ScanOutcome(job, job.items_new, job.items_seen)
+    return ScanOutcome(job, new, seen)
 
 
 def cancel_scan(s: Session, job: ScanJob) -> None:
