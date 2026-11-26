@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, conf %}
+{% block content %}
+<h1>Box Split Calculator</h1><p class="sub">Compare selling a boxed set whole against splitting it into kits. Values come from recorded sold prices; override any component price below. Future appreciation is speculative and not modelled as profit.</p>
+<form class="panel form" method="get">
+<label class="wide">Bundle<select name="product_id" required><option value="">—</option>{% for b in bundles %}<option value="{{ b.id }}" {{ 'selected' if calc and calc.prod.id==b.id }}>{{ b.name }}</option>{% endfor %}</select></label>
+<label>Purchase price per box (£)<input name="cost" value="{{ q.get('cost','') }}" required></label><label>Copies<input name="copies" type="number" min="1" value="{{ q.get('copies','1') }}"></label>
+<label>Extra acquisition costs (£)<input name="acq_costs" value="{{ q.get('acq_costs','') }}"></label>
+<label>Postage per sale (£)<input name="postage" value="{{ q.get('postage','') }}" placeholder="settings default"></label><label>Packaging per sale (£)<input name="packaging" value="{{ q.get('packaging','') }}" placeholder="settings default"></label>
+<label>Assume unsold %<input name="unsold_pct" type="number" min="0" max="100" value="{{ q.get('unsold_pct','0') }}"></label>
+<label>Condition<select name="condition">{% for k in ['sealed','new_in_box','new_on_sprue'] %}<option value="{{ k }}" {{ 'selected' if q.get('condition')==k }}>{{ k|cond }}</option>{% endfor %}</select></label>
+{% if calc %}{% for ln in calc.lines %}<input type="hidden" name="price_{{ loop.index0 }}" value="{{ q.get('price_' ~ loop.index0, '') }}">{% endfor %}{% endif %}
+<button class="primary">Calculate</button></form>
+{% if not bundles %}<div class="panel empty" style="margin-top:12px">No bundles in the catalogue yet. Add box contents on a product page.</div>{% endif %}
+{% if calc %}
+{% if calc.missing %}<div class="flash err" style="margin-top:12px">No reliable value for: {{ calc.missing|join(', ') }}. Enter a price for them below; totals exclude them until you do.</div>{% endif %}
+<form class="panel scroll" method="get" style="margin-top:12px">
+{% for k in ['product_id','cost','copies','acq_costs','postage','packaging','unsold_pct','condition'] %}<input type="hidden" name="{{ k }}" value="{{ q.get(k,'') }}">{% endfor %}
+<table><tr><th>Component</th><th class="num">Units</th><th class="num">RRP</th><th class="num">Conservative</th><th class="num">Expected (editable)</th><th class="num">Optimistic</th><th class="num">Fees/unit</th><th class="num">Net/unit</th><th class="num">Net total</th><th class="num">Sales/30d</th><th>Confidence</th></tr>
+{% for ln in calc.lines %}<tr><td>{{ ln.part.name }}{% if ln.part.note %}<div class="faint">{{ ln.part.note }}</div>{% endif %}</td><td class="num">{{ ln.units }}</td><td class="num">{{ money(ln.rrp) }}</td><td class="num">{{ money(ln.cons) }}</td>
+<td class="num"><input name="price_{{ loop.index0 }}" value="{{ '%.2f'|format(ln.exp/100) if ln.exp is not none else '' }}" style="width:80px;text-align:right"></td><td class="num">{{ money(ln.opt) }}</td>
+<td class="num">{{ money(ln.fee) }}</td><td class="num">{{ money(ln.net_unit) }}</td><td class="num">{{ money(ln.net_total) }}</td><td class="num">{{ ln.spm if ln.spm is not none else '—' }}</td><td>{{ conf(ln.confidence) }}</td></tr>{% endfor %}</table>
+<button style="margin-top:8px">Recalculate with edited prices</button></form>
+<div class="grid g4" style="margin-top:12px">
+<div class="panel kpi"><div class="lbl">Total purchase cost</div><div class="val">{{ calc.cost|gbp }}</div><div class="note">{{ calc.copies }} box(es)</div></div>
+<div class="panel kpi"><div class="lbl">Split: net revenue</div><div class="val">{{ calc.total_net|gbp }}</div><div class="note">gross {{ calc.gross|gbp }}, after fees, postage, packaging</div></div>
+<div class="panel kpi"><div class="lbl">Split: net profit</div><div class="val">{{ money(calc.profit, True) }}</div><div class="note">ROI {{ pct(calc.roi) }}</div></div>
+<div class="panel kpi"><div class="lbl">Units to recover cost</div><div class="val">{{ calc.need_units or '—' }}<span class="mut" style="font-size:13px"> / {{ calc.total_units }}</span></div><div class="note">{% if calc.need_units %}{{ '%.0f'|format(calc.need_units*100/calc.total_units) }}% of units, best sellers first{% else %}cost not recovered at these prices{% endif %}</div></div>
+</div>
+<div class="panel" style="margin-top:12px"><h2>Strategy comparison</h2><table><tr><th>Strategy</th><th class="num">Net profit</th><th>Notes</th></tr>
+<tr><td>Sell complete box now</td><td class="num">{{ money(calc.box_profit, True) }}</td><td class="mut">{% if calc.box_profit is none %}No reliable sold data for the complete box{% else %}{{ calc.box_v.n_comparables }} comps, {{ calc.box_v.confidence }} confidence; usually faster, one sale{% endif %}</td></tr>
+<tr><td>Split into kits</td><td class="num">{{ money(calc.profit, True) }}</td><td class="mut">{{ calc.total_units }} separate sales; more handling and slower sell-through</td></tr>
+<tr><td>Sell some, keep others</td><td class="num">—</td><td class="mut">Not modelled yet: when you split real stock, each kit gets its own cost basis and can be held or sold independently</td></tr>
+<tr><td>Hold complete box</td><td class="num">—</td><td class="mut">Speculative: discontinued boxes sometimes rise, sometimes don't. Not counted as profit.</td></tr></table></div>
+{% endif %}
+{% endblock %}

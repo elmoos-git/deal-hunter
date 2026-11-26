@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, score, conf, cond_select %}
+{% block content %}
+<div class="spread"><div><h1>Deal Scanner</h1><p class="sub">Opportunity feed. Listings come from manual entry, URL capture and CSV/JSON imports. Automated marketplace scanning is not connected yet (see Source Manager).</p></div>
+<form method="post" action="/deals/rescore"><button>Re-score open opportunities</button></form></div>
+<form class="row panel" method="get" style="margin-bottom:12px">
+  <select name="status">{% for v in ['open','new','saved','watching','dismissed','purchased','all'] %}<option {{ 'selected' if f.status==v }}>{{ v }}</option>{% endfor %}</select>
+  <select name="source"><option value="">All sources</option>{% for s in srcs %}<option value="{{ s.key }}" {{ 'selected' if f.source==s.key }}>{{ s.name }}</option>{% endfor %}</select>
+  <select name="confidence"><option value="">Any confidence</option>{% for c in ['high','medium','low','insufficient'] %}<option {{ 'selected' if f.confidence==c }}>{{ c }}</option>{% endfor %}</select>
+  <label class="mut">Min score <input name="min_score" type="number" min="0" max="100" value="{{ f.min_score }}" style="width:70px"></label>
+  <select name="sort">{% for k,l in [('score','Score'),('profit','Expected profit'),('roi','ROI'),('cost','Lowest cost'),('new','Newest')] %}<option value="{{ k }}" {{ 'selected' if f.sort==k }}>Sort: {{ l }}</option>{% endfor %}</select>
+  <button>Apply</button>
+</form>
+<div class="panel scroll"><table>
+<tr><th>Score</th><th>Listing</th><th>Source</th><th>Category</th><th>Condition</th><th class="num">Price</th><th class="num">Landed cost</th><th class="num">Est. resale</th><th class="num">Exp. profit</th><th class="num">ROI</th><th>Confidence</th><th>Ends</th><th>Found</th><th></th></tr>
+{% for o in rows %}{% set l = o.listing %}
+<tr><td>{{ score(o.score) }}</td>
+<td style="max-width:320px"><a href="/deals/{{ o.id }}">{{ l.title }}</a>{% if o.warnings %}<div class="warn" style="font-size:11px">{{ o.warnings|join(' · ') }}</div>{% endif %}{% if l.possible_duplicate_of %}<span class="badge b-amber">possible duplicate</span>{% endif %}</td>
+<td>{{ l.source.name }}</td><td>{{ o.product.category.name if o.product and o.product.category else '—' }}</td><td>{{ l.condition|cond }}</td>
+<td class="num">{{ l.price_p|gbp }}{% if l.listing_type=='auction' %}<div class="faint">bid</div>{% endif %}</td><td class="num">{{ o.acquisition_p|gbp }}</td>
+<td class="num">{{ money(o.resale_expected_p) }}</td><td class="num">{{ money(o.profit_expected_p, True) }}</td><td class="num">{{ pct(o.roi_pct) }}</td>
+<td>{{ conf(o.confidence) }}</td><td class="mono">{{ l.ends_at|dt }}</td><td class="mono">{{ o.created_at|dt }}</td>
+<td>{% if l.url %}<a href="{{ l.url }}" target="_blank" rel="noopener noreferrer nofollow">Open ↗</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="14" class="empty">No opportunities match. Add one below or import a CSV.</td></tr>{% endfor %}
+</table></div>
+
+<div class="grid g2" style="margin-top:12px" id="add">
+<div class="panel"><h2>Add a listing</h2>
+<form class="form" method="post" action="/deals/add">
+  <label class="wide">Title<input name="title" required value="{{ request.query_params.get('prefill_title','') }}"></label>
+  <label>Source<select name="source">{% for s in srcs %}<option value="{{ s.key }}" {{ 'selected' if s.key=='manual' }}>{{ s.name }}</option>{% endfor %}</select></label>
+  <label>Price / current bid (£)<input name="price" required value="{{ request.query_params.get('prefill_price','') }}"></label>
+  <label>Shipping (£)<input name="shipping" value="0"></label>
+  <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
+  <label>Condition{{ cond_select() }}</label>
+  <label>Listing type<select name="listing_type"><option value="fixed">Buy it now / fixed</option><option value="auction">Auction</option><option value="offer">Offers / negotiable</option></select></label>
+  <label>Ends at<input type="datetime-local" name="ends_at"></label>
+  <label>Seller<input name="seller"></label>
+  <label class="wide">Listing URL<input name="url" value="{{ request.query_params.get('prefill_url','') }}"></label>
+  <input type="hidden" name="image_url" value="{{ request.query_params.get('prefill_image','') }}">
+  <label class="wide">Product (leave blank to auto-match)<select name="product_id"><option value="">Auto-match from title</option>{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+  <label class="wide">Description (optional)<textarea name="description"></textarea></label>
+  <button class="primary">Analyse & add to feed</button>
+</form></div>
+<div class="panel"><h2>Capture from a URL</h2>
+<p class="mut">Paste a public listing URL. The app reads only the page's standard metadata (title, image, price where published) with a single request. Sites that block automated requests, need a login, or forbid it (e.g. Facebook Marketplace) will fall back to manual entry.</p>
+<form class="row" method="post" action="/deals/fetch"><input name="url" placeholder="https://…" style="flex:1" required><button>Fetch details</button></form>
+<p class="faint" style="margin-top:10px">A browser extension for capturing listings you're viewing is planned; it will post to <span class="mono">/api/listings</span>.</p>
+</div></div>
+{% endblock %}

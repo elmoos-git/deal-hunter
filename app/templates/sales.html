@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, status as st %}
+{% block content %}
+<div class="spread"><div><h1>Sales</h1><p class="sub">Net proceeds = sale price + buyer shipping − fees − postage − packaging − refunds. Profit = net proceeds − allocated cost.</p></div><a class="btn primary" href="/sales/new">Record sale</a></div>
+<div class="panel scroll"><table><tr><th>Date</th><th>Platform</th><th>Order</th><th>Items</th><th class="num">Gross</th><th class="num">Selling costs</th><th class="num">Refunds</th><th class="num">Net proceeds</th><th class="num">Cost</th><th class="num">Profit</th><th class="num">ROI</th><th class="num">Margin</th><th>Status</th></tr>
+{% for so, f in rows %}<tr><td class="mono">{{ so.sold_on|d }}</td><td>{{ so.platform }}</td><td><a href="/sales/{{ so.id }}">{{ so.order_ref }}</a></td><td>{{ so.items|length }}</td><td class="num">{{ f.gross_p|gbp }}</td><td class="num">{{ f.selling_costs_p|gbp }}</td><td class="num">{{ f.refunds_p|gbp }}</td>
+<td class="num">{{ f.net_proceeds_p|gbp }}</td><td class="num">{{ f.cogs_p|gbp }}</td><td class="num">{{ money(f.profit_p, True) }}</td><td class="num">{{ pct(f.roi_pct) }}</td><td class="num">{{ pct(f.margin_pct) }}</td><td>{{ st(so.status) }}</td></tr>
+{% else %}<tr><td colspan="13" class="empty">No sales recorded. eBay order report import is planned (Phase 5).</td></tr>{% endfor %}</table></div>
+{% endblock %}

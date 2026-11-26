@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}<div class="spread"><h1>Notifications</h1><form method="post" action="/alerts/read"><button>Mark all read</button></form></div>
+<div class="panel"><table><tr><th>When</th><th>Type</th><th>Priority</th><th>Message</th></tr>
+{% for a in rows %}<tr class="{{ 'faint' if a.read_at }}"><td class="mono">{{ a.created_at|dt }}</td><td>{{ a.kind|replace('_',' ') }}</td><td>{{ a.priority }}</td><td>{% if a.link %}<a href="{{ a.link }}">{{ a.message }}</a>{% else %}{{ a.message }}{% endif %}</td></tr>
+{% else %}<tr><td colspan="4" class="empty">No notifications. Alerts are created for strong new opportunities, price changes and watchlist targets. Each is raised once.</td></tr>{% endfor %}</table>
+<p class="faint">Quiet hours and delivery channels (email/push) are not built yet.</p></div>{% endblock %}

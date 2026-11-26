@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, conf, cond_select %}
+{% block content %}
+<div class="spread"><div><h1>Market Intelligence</h1><p class="sub">Valuations come only from completed sales you've recorded (verified or labelled TEST). Asking prices never count as comparables.</p></div>
+<form class="row" method="get"><select name="window">{% for w in [30,90,180,365,0] %}<option value="{{ w }}" {{ 'selected' if window==w }}>{{ (w ~ ' days') if w else 'All history' }}</option>{% endfor %}</select><button>Window</button></form></div>
+<div class="panel scroll"><table><tr><th>Product</th><th>Condition</th><th class="num">Comps</th><th class="num">Conservative</th><th class="num">Expected</th><th class="num">Optimistic</th><th class="num">Sales/30d</th><th class="num">Trend</th><th class="num">Est. days to sell</th><th>Confidence</th><th>Computed</th></tr>
+{% for v in rows %}{% set p = prods.get(v.product_id) %}<tr><td><a href="/products/{{ v.product_id }}">{{ p.name if p else v.product_id }}</a></td><td>{{ group_labels[v.condition_group] }}</td><td class="num">{{ v.n_comparables }}</td>
+<td class="num">{{ money(v.conservative_p) }}</td><td class="num">{{ money(v.effective_expected_p) }}{% if v.override_p is not none %} <span class="badge b-purple">override</span>{% endif %}</td><td class="num">{{ money(v.optimistic_p) }}</td>
+<td class="num">{{ v.sales_per_30d if v.sales_per_30d is not none else '—' }}</td><td class="num">{{ pct(v.trend_pct) }}</td><td class="num">{{ v.est_days_to_sell or '—' }}</td><td>{{ conf(v.confidence) }}</td><td class="mono faint">{{ v.computed_at|dt }}</td></tr>
+{% else %}<tr><td colspan="11" class="empty">No valuations yet for this window. Record sold prices on a product page or import them.</td></tr>{% endfor %}</table></div>
+<div class="grid g2" style="margin-top:12px">
+<div class="panel" id="comp"><h2>Quick sold-price entry</h2><p class="faint">Workflow with eBay Product Research: search the item in Seller Hub → Research, open each genuinely comparable sold listing, and record it here (or fill the CSV template on Imports). There is no public API for Product Research data.</p>
+<form class="form" method="get" action="/products"><label class="wide">Pick the product first, then record on its page<select name="q"><option value="">—</option>{% for p in products %}<option value="{{ p.name }}">{{ p.name }}</option>{% endfor %}</select></label><button>Open product</button></form></div>
+<div class="panel"><h2>Recently recorded</h2><table>{% for o in recent %}<tr><td class="mono">{{ o.observed_on|d }}</td><td><a href="/products/{{ o.product_id }}">{{ prods[o.product_id].name|truncate(40) }}</a></td><td>{{ o.observation_type }}</td><td class="num">{{ o.price_p|gbp }}</td><td>{% if o.data_label=='test' %}<span class="badge b-amber">TEST</span>{% endif %}</td></tr>{% else %}<tr><td class="empty">None yet</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

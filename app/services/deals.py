@@ -112,6 +112,14 @@ def ingest(s: Session, data: ListingIn, today: date | None = None) -> IngestResu
     if created and opp and opp.score >= all_settings(s)["scoring"]["thresholds"]["strong"]:
         raise_alert(s, "new_opportunity", f"Strong opportunity ({opp.score}): {listing.title[:120]}",
                     f"opportunity:{opp.id}", f"/deals/{opp.id}", "high")
+    if opp and listing.product_id:
+        from app.models import WatchlistEntry
+        for w in s.scalars(select(WatchlistEntry).where(WatchlistEntry.product_id == listing.product_id,
+                                                        WatchlistEntry.target_price_p.is_not(None))):
+            if opp.acquisition_p <= w.target_price_p:
+                raise_alert(s, "watch_target", f"Below your target ({opp.acquisition_p/100:.2f} ≤ {w.target_price_p/100:.2f}): "
+                            f"{listing.title[:120]}", f"watch:{w.id}:{listing.id}:{opp.acquisition_p}", f"/deals/{opp.id}",
+                            "high" if w.priority == "high" else "normal")
     if changed and opp:
         raise_alert(s, "price_change", f"Price changed to £{price_p/100:.2f}: {listing.title[:120]}",
                     f"price:{listing.id}:{price_p}", f"/deals/{opp.id}")

@@ -1,0 +1,2 @@
+source,order_ref,date,seller,description,product,condition,quantity,unit_price,shipping,fees,other_costs,url
+ebay_uk,EXAMPLE-ORDER-1,2026-11-20,example_seller,Example item (replace me),,sealed,1,20.00,3.00,0,0,

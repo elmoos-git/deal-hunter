@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% from "_macros.html" import money %}
+{% block content %}<h1>Watchlist</h1><p class="sub">Products and listings you're tracking. When a new listing for a watched product lands at or below your target landed cost, an alert is raised once.</p>
+<div class="grid g2"><div class="panel"><table><tr><th>Product / listing</th><th class="num">Target</th><th>Priority</th><th>Notes</th><th></th></tr>
+{% for w in rows %}<tr><td>{% if w.product %}<a href="/products/{{ w.product.id }}">{{ w.product.name }}</a>{% endif %}{% if w.listing %}<div class="faint">{{ w.listing.title }}</div>{% endif %}</td><td class="num">{{ money(w.target_price_p) }}</td><td>{{ w.priority }}</td><td>{{ w.notes or '' }}</td>
+<td><form method="post" action="/watchlist/{{ w.id }}/delete" data-confirm="Remove from watchlist?"><button class="sm danger">Remove</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="empty">Nothing watched yet</td></tr>{% endfor %}</table></div>
+<div class="panel"><h2>Watch a product</h2><form class="form" method="post" action="/watchlist/add">
+<label class="wide">Product<select name="product_id">{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+<label>Target landed cost (£)<input name="target"></label><label>Priority<select name="priority"><option>normal</option><option>high</option><option>low</option></select></label>
+<label class="wide">Notes<input name="notes"></label><button class="primary">Add</button></form>
+<p class="faint">Saved search criteria, quiet hours and auction-closing reminders are planned with automated scanning (Phase 3).</p></div></div>{% endblock %}

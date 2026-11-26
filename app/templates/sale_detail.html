@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, status as st %}
+{% block content %}
+<div class="spread"><div><h1>Sale {{ so.order_ref }}</h1><p class="sub">{{ so.platform }} · {{ so.sold_on|d }} · {{ st(so.status) }}</p></div>
+{% if so.status != 'cancelled' %}<form method="post" action="/sales/{{ so.id }}/cancel" data-confirm="Cancel this order? Money, fees and stock will be reversed."><button class="danger">Cancel order</button></form>{% endif %}</div>
+<div class="grid g4">
+<div class="panel kpi"><div class="lbl">Gross revenue</div><div class="val">{{ fig.gross_p|gbp }}</div><div class="note">incl. buyer shipping {{ so.buyer_shipping_p|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">Net proceeds</div><div class="val">{{ fig.net_proceeds_p|gbp }}</div><div class="note">costs {{ fig.selling_costs_p|gbp }}, refunds {{ fig.refunds_p|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">Realised profit</div><div class="val">{{ money(fig.profit_p, True) }}</div><div class="note">cost of goods {{ fig.cogs_p|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">ROI / margin</div><div class="val">{{ pct(fig.roi_pct) }}</div><div class="note">margin {{ pct(fig.margin_pct) }}</div></div></div>
+<div class="grid g2" style="margin-top:12px">
+<div class="panel"><h2>Lines</h2><table><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Cost</th><th class="num">Returned</th></tr>
+{% for ln in so.items %}<tr><td><a href="/inventory/{{ ln.inventory_item_id }}">{{ ln.item.sku }}</a> {{ ln.item.name }}</td><td class="num">{{ ln.quantity }}</td><td class="num">{{ ln.unit_price_p|gbp }}</td><td class="num">{{ ln.cogs_p|gbp }}</td><td class="num">{{ ln.returned_quantity }}</td></tr>{% endfor %}</table>
+<table style="margin-top:10px"><tr><td>Platform fees</td><td class="num">{{ so.platform_fees_p|gbp }}</td></tr><tr><td>Advertising</td><td class="num">{{ so.ad_fees_p|gbp }}</td></tr><tr><td>Postage</td><td class="num">{{ so.postage_p|gbp }}</td></tr><tr><td>Packaging</td><td class="num">{{ so.packaging_p|gbp }}</td></tr><tr><td>Other</td><td class="num">{{ so.other_costs_p|gbp }}</td></tr></table>
+{% if so.refunds %}<h2 style="margin-top:10px">Refunds</h2>{% for r in so.refunds %}<div class="mono">{{ r.created_at|dt }} −{{ r.amount_p|gbp }}{% if r.fee_credit_p %} (fee credit {{ r.fee_credit_p|gbp }}){% endif %} <span class="faint">{{ r.reason or '' }}</span></div>{% endfor %}{% endif %}</div>
+{% if so.status not in ('cancelled','refunded') %}<form class="panel" method="post" action="/sales/{{ so.id }}/refund" data-confirm="Record this refund?"><h2>Refund / return</h2><div class="form">
+<label>Refund amount (£)<input name="amount" required></label><label>Fee credit received (£)<input name="fee_credit" value="0"></label>
+<label>Returned items<select name="restock"><option value="1">Restock (back to inventory at original cost)</option><option value="0">Damaged (write off)</option></select></label>
+{% for ln in so.items %}{% if ln.quantity > ln.returned_quantity %}<label>Return qty: {{ ln.item.sku }}<input name="ret_{{ ln.id }}" type="number" min="0" max="{{ ln.quantity - ln.returned_quantity }}" value="0"></label>{% endif %}{% endfor %}
+<label class="wide">Reason<input name="reason"></label><button class="danger">Record refund</button></div></form>{% endif %}
+</div>
+{% endblock %}

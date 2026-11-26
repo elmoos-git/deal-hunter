@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Settings</h1><p class="sub">Workspace database: <span class="mono">{{ db_url }}</span> · <a href="/settings/backup">Download backup</a></p>
+<form method="post" action="/settings" class="stack">
+<div class="panel"><h2>Budget rules</h2><div class="form">
+<label>Max capital per deal (£)<input name="max_per_deal_p" value="{{ '%.2f'|format(st.budget.max_per_deal_p/100) }}"></label>
+<label>Minimum cash reserve (£)<input name="min_cash_reserve_p" value="{{ '%.2f'|format(st.budget.min_cash_reserve_p/100) }}"></label>
+<label>Minimum ROI %<input name="min_roi_pct" value="{{ st.budget.min_roi_pct }}"></label>
+<label>Minimum profit (£)<input name="min_profit_p" value="{{ '%.2f'|format(st.budget.min_profit_p/100) }}"></label>
+<label>Target monthly profit (£)<input name="target_monthly_profit_p" value="{{ '%.2f'|format(st.budget.target_monthly_profit_p/100) }}"></label>
+<label>Reinvestment %<input name="reinvest_pct" value="{{ st.budget.reinvest_pct }}"></label>
+<label>Max exposure per category %<input name="max_category_exposure_pct" value="{{ st.budget.max_category_exposure_pct }}"></label></div></div>
+<div class="panel"><h2>Selling costs</h2><p class="warn">Fee profiles are unverified defaults. Check eBay's current UK fee pages and set them yourself. As a reseller you should expect business-seller treatment.</p><div class="form">
+<label>Active profile<select name="selling_profile">{% for k, v in st.selling_profiles.items() %}<option value="{{ k }}" {{ 'selected' if st.selling_profile==k }}>{{ v.label }}</option>{% endfor %}</select></label>
+{% for k, v in st.selling_profiles.items() %}<label>{{ k }}: final value fee %<input name="fvf_{{ k }}" value="{{ v.final_value_bp/100 }}"></label><label>{{ k }}: per order (£)<input name="fixed_{{ k }}" value="{{ '%.2f'|format(v.per_order_fixed_p/100) }}"></label>{% endfor %}
+<label>Default postage (£)<input name="default_postage_p" value="{{ '%.2f'|format(st.default_postage_p/100) }}"></label>
+<label>Default packaging (£)<input name="default_packaging_p" value="{{ '%.2f'|format(st.default_packaging_p/100) }}"></label>
+<label>VAT registered<select name="vat_registered"><option value="0">No</option><option value="1" {{ 'selected' if st.vat_registered }}>Yes</option></select></label></div></div>
+<div class="panel"><h2>Deal scoring</h2><p class="faint">Weights are relative. Thresholds set the 0–100 bands. Missing valuation evidence always scores 0.</p><div class="form">
+{% for k, v in st.scoring.weights.items() %}<label>Weight: {{ k }}<input name="w_{{ k }}" type="number" min="0" value="{{ v }}"></label>{% endfor %}
+{% for k, v in st.scoring.thresholds.items() %}<label>Threshold: {{ k }}<input name="t_{{ k }}" type="number" min="0" max="100" value="{{ v }}"></label>{% endfor %}
+<label>Valuation window (days)<select name="valuation_window_days">{% for w in [30,90,180,365] %}<option {{ 'selected' if st.valuation_window_days==w }}>{{ w }}</option>{% endfor %}</select></label></div></div>
+<button class="primary">Save settings</button></form>
+<div class="panel" style="margin-top:12px"><h2>Restore</h2><p class="mut">Stop the app, then copy a backup file over <span class="mono">{{ db_url }}</span>. Restore from the UI is not built (it is destructive and needs a confirmation flow).</p></div>
+{% endblock %}

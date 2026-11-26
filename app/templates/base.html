@@ -1,0 +1,49 @@
+{% from "_macros.html" import icon %}<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ title or "Deal Hunter" }}{% endblock %} · Deal Hunter{% if demo %} (DEMO){% endif %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+</head>
+<body>
+<div class="shell">
+<nav class="side">
+  <div class="brand"><span class="sig"></span>Deal Hunter</div>
+  {% for grp, items in nav %}
+    <div class="grp">{{ grp }}</div>
+    {% for href, label, ic in items %}
+      <a href="{{ href }}" class="{{ 'on' if active == href }}">{{ icon(ic) }}{{ label }}</a>
+    {% endfor %}
+  {% endfor %}
+</nav>
+<main>
+  {% if demo %}<div class="banner demo">DEMO WORKSPACE — synthetic data in a separate database. Nothing here is real market evidence or real money.</div>{% endif %}
+  <header class="top">
+    <form action="/search" method="get"><input type="search" name="q" placeholder="Search products, inventory SKUs, listings…" value="{{ q if q is string else '' }}" aria-label="Global search"></form>
+    <div class="row" style="margin-left:auto">
+      <a class="btn sm bell" href="/alerts" title="Notifications">{{ icon('bell') }}{% if alert_count %}<span class="n">{{ alert_count }}</span>{% endif %}</a>
+      <div class="quick" tabindex="0"><button class="sm primary" type="button">{{ icon('plus') }}Quick action</button>
+        <div class="menu">
+          <a href="/deals#add">Add a listing / opportunity</a>
+          <a href="/market#comp">Record a sold price</a>
+          <a href="/inventory/purchase">Record a purchase</a>
+          <a href="/sales/new">Record a sale</a>
+          <a href="/analyser">Auction max-bid calculator</a>
+          <a href="/split">Box split calculator</a>
+          <a href="/imports">Import CSV / JSON</a>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="content">
+    {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+    {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</main>
+</div>
+<script src="/static/vendor/chart.umd.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

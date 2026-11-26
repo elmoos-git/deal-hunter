@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% from "_macros.html" import money, status as st %}
+{% block content %}
+<div class="spread"><div><h1>Inventory</h1><p class="sub">Cost basis includes the item's share of shipping and fees. Ageing thresholds: {{ thresholds|join(', ') }} days.</p></div>
+<div class="row"><a class="btn primary" href="/inventory/purchase">Record purchase</a><a class="btn" href="/inventory/export.csv">Export CSV</a></div></div>
+<form class="row panel" method="get" style="margin-bottom:12px"><select name="status"><option value="active" {{ 'selected' if status=='active' }}>On hand</option><option value="all" {{ 'selected' if status=='all' }}>All</option>{% for s in statuses %}<option {{ 'selected' if status==s }}>{{ s }}</option>{% endfor %}</select>
+<input type="search" name="q" value="{{ q }}" placeholder="Name or SKU"><button>Filter</button></form>
+<div class="panel scroll"><table><tr><th>SKU</th><th>Item</th><th>Condition</th><th>Status</th><th class="num">On hand</th><th class="num">Cost basis</th><th class="num">Remaining cost</th><th class="num">Asking</th><th>Acquired</th><th class="num">Age</th><th>Source</th><th>Location</th></tr>
+{% for i in rows %}{% set age = (today - i.acquired_on).days %}
+<tr><td class="mono"><a href="/inventory/{{ i.id }}">{{ i.sku }}</a></td><td>{{ i.name }}{% if i.parent_item_id %} <span class="badge">from split</span>{% endif %}</td><td>{{ i.condition|cond }}</td><td>{{ st(i.status) }}</td>
+<td class="num">{{ i.quantity_on_hand }}/{{ i.quantity_initial }}</td><td class="num">{{ i.cost_basis_p|gbp }}</td><td class="num">{{ i.remaining_cost_p|gbp }}</td><td class="num">{{ money(i.asking_price_p) }}</td>
+<td class="mono">{{ i.acquired_on|d }}</td><td class="num {{ 'neg' if i.quantity_on_hand and age >= thresholds[3] else 'warn' if i.quantity_on_hand and age >= thresholds[2] else '' }}">{{ age }}d</td><td>{{ i.source_key or '—' }}</td><td>{{ i.storage_location or '—' }}</td></tr>
+{% else %}<tr><td colspan="12" class="empty">No inventory. Record a purchase to create stock.</td></tr>{% endfor %}</table></div>
+{% endblock %}

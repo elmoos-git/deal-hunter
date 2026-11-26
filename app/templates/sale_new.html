@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Record sale</h1><p class="sub">Selling-fee profile: {{ profile.label }} ({{ '%.2f'|format(profile.final_value_bp/100) }}% + {{ profile.per_order_fixed_p|gbp }}). Leave platform fees blank to estimate from it, or enter the actual fee from your eBay order.</p>
+<form class="panel" method="post" action="/sales/new"><div class="form">
+<label>Platform<input name="platform" value="ebay_uk"></label><label>Order reference<input name="order_ref" required></label><label>Date<input type="date" name="date" value="{{ today }}"></label>
+<label>Buyer-paid shipping (£)<input name="buyer_shipping" value="0"></label><label>Platform fees (£)<input name="fees" placeholder="estimate"></label><label>Advertising fees (£)<input name="ad_fees" value="0"></label>
+<label>Postage cost (£)<input name="postage" value="{{ '%.2f'|format(st.default_postage_p/100) }}"></label><label>Packaging (£)<input name="packaging" value="{{ '%.2f'|format(st.default_packaging_p/100) }}"></label><label>Other costs (£)<input name="other" value="0"></label></div>
+<h2 style="margin-top:14px">Items sold</h2><table><tr><th>Inventory item</th><th>Qty</th><th>Unit sale price (£)</th></tr>
+{% for i in range(4) %}<tr><td><select name="l_item"><option value="">—</option>{% for it in items %}<option value="{{ it.id }}" {{ 'selected' if i==0 and pre==it.id }}>{{ it.sku }} · {{ it.name|truncate(60) }} ({{ it.quantity_on_hand }} on hand)</option>{% endfor %}</select></td>
+<td><input name="l_qty" type="number" min="1" value="1" style="width:60px"></td><td><input name="l_price" style="width:90px"></td></tr>{% endfor %}</table>
+<label class="mut">Notes<textarea name="notes"></textarea></label><button class="primary" style="margin-top:8px">Record sale</button></form>
+{% endblock %}

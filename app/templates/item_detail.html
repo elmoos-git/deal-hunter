@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% from "_macros.html" import money, status as st, conf %}
+{% block content %}
+<div class="spread"><div><h1>{{ item.name }}</h1><p class="sub mono">{{ item.sku }} · {{ item.condition|cond }} · acquired {{ item.acquired_on|d }} ({{ age }} days) · {{ st(item.status) }}</p></div>
+{% if item.quantity_on_hand %}<a class="btn primary" href="/sales/new?item={{ item.id }}">Record sale</a>{% endif %}</div>
+{% if suggestion %}<div class="flash err" style="border-color:rgba(251,191,36,.4);color:var(--amber);background:rgba(251,191,36,.06)">Suggestion (for your approval): {{ suggestion }}</div>{% endif %}
+<div class="grid g4">
+<div class="panel kpi"><div class="lbl">On hand</div><div class="val">{{ item.quantity_on_hand }} / {{ item.quantity_initial }}</div></div>
+<div class="panel kpi"><div class="lbl">Cost basis</div><div class="val">{{ item.cost_basis_p|gbp }}</div><div class="note">purchase {{ item.purchase_cost_p|gbp }} + allocated {{ item.allocated_costs_p|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">Remaining cost</div><div class="val">{{ item.remaining_cost_p|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">Current valuation</div><div class="val">{{ money(v.effective_expected_p if v and v.confidence != 'insufficient' else item.est_resale_p) }}</div><div class="note">{% if v %}{{ conf(v.confidence) }}{% else %}no catalogue link{% endif %}</div></div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+<form class="panel" method="post" action="/inventory/{{ item.id }}/update"><h2>Details</h2><div class="form">
+<label>Status<select name="status">{% for s in statuses %}<option {{ 'selected' if item.status==s }}>{{ s }}</option>{% endfor %}</select></label>
+<label>Storage location<input name="storage" value="{{ item.storage_location or '' }}"></label>
+<label>Target price (£)<input name="target" value="{{ '%.2f'|format(item.target_price_p/100) if item.target_price_p else '' }}"></label>
+<label>Current asking (£)<input name="asking" value="{{ '%.2f'|format(item.asking_price_p/100) if item.asking_price_p else '' }}"></label>
+<label class="wide">Notes<textarea name="notes">{{ item.notes or '' }}</textarea></label><button>Save</button></div>
+<p class="faint">Source: {{ item.source_key or '—' }} · order {{ item.order_ref or '—' }}{% if item.listing_url %} · <a href="{{ item.listing_url }}" rel="noopener noreferrer nofollow" target="_blank">listing ↗</a>{% endif %}{% if item.product %} · <a href="/products/{{ item.product.id }}">catalogue</a>{% endif %}</p></form>
+<div class="panel"><h2>Split bundle</h2>
+{% if parent %}<p>Created by splitting <a href="/inventory/{{ parent.id }}">{{ parent.sku }}</a>. Allocated cost: {{ alloc_in.allocated_p|gbp }} ({{ alloc_in.method|replace('_',' ') }}).</p>{% endif %}
+{% if can_split %}{% if plan %}<form method="post" action="/inventory/{{ item.id }}/split" data-confirm="Split one unit into its components? This moves its cost to the new items."><table><tr><th>Component</th><th class="num">Qty</th><th>Basis</th><th>Weight override (£)</th></tr>
+{% for pt in plan %}<tr><td>{{ pt.name }}</td><td class="num">{{ pt.quantity }}</td><td>{{ pt.basis|replace('_',' ') }} {{ money(pt.unit_value_p) }}</td><td>{% if pt.product_id %}<input name="w_{{ pt.product_id }}" style="width:80px" placeholder="{{ 'required' if pt.basis=='missing' }}">{% endif %}</td></tr>{% endfor %}</table>
+<button class="primary" style="margin-top:8px">Split one unit</button></form>{% else %}<p class="warn">{{ plan_err }}</p>{% endif %}
+{% elif not parent and not allocs_out %}<p class="faint">Not a bundle with known contents (or nothing left on hand).</p>{% endif %}
+{% if allocs_out %}<h2 style="margin-top:10px">Cost allocations out</h2><table><tr><th>Item</th><th>Method</th><th class="num">Basis</th><th class="num">Allocated</th></tr>
+{% for a in allocs_out %}<tr><td><a href="/inventory/{{ a.target_item_id }}">{{ children[a.target_item_id].sku }}</a> {{ children[a.target_item_id].name }}</td><td>{{ a.method|replace('_',' ') }}</td><td class="num">{{ a.basis_value_p|gbp }}</td><td class="num">{{ a.allocated_p|gbp }}</td></tr>{% endfor %}</table>{% endif %}</div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+<div class="panel"><h2>History</h2><table><tr><th>When</th><th>Movement</th><th class="num">Qty</th><th class="num">Cost</th><th>Note</th></tr>
+{% for m in item.movements %}<tr><td class="mono">{{ m.created_at|dt }}</td><td>{{ m.kind|replace('_',' ') }}</td><td class="num">{{ '%+d'|format(m.quantity_delta) }}</td><td class="num">{{ m.cost_delta_p|gbp }}</td><td class="faint">{{ m.note or '' }}{% if m.ref_type=='sales_order' %}<a href="/sales/{{ m.ref_id }}">sale</a>{% endif %}</td></tr>{% endfor %}</table></div>
+<form class="panel" method="post" action="/inventory/{{ item.id }}/adjust" data-confirm="Record this inventory adjustment?"><h2>Adjust quantity</h2><div class="form">
+<label>Change (e.g. -1)<input name="qty" type="number" required></label><label>Reason<input name="reason" required></label>
+<label>Type<select name="write_off"><option value="0">Correction</option><option value="1">Write-off (damaged/lost)</option></select></label><button class="danger">Record adjustment</button></div>
+<p class="faint">Removing stock releases its cost as a loss; adding found stock adds zero cost.</p></form></div>
+{% endblock %}

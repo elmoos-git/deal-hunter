@@ -1,0 +1,63 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, conf, cond_select %}
+{% block content %}
+<h1>{{ prod.name }}</h1><p class="sub">#{{ prod.id }} · {{ prod.category.name if prod.category else 'Uncategorised' }} · provenance: {{ prod.provenance }}</p>
+<div class="grid g3">
+<div class="panel"><h2>Details</h2><dl class="kv">
+{% for label, v in [('Manufacturer', prod.manufacturer), ('Game system', prod.game_system), ('Faction', prod.faction), ('Range', prod.product_range), ('Edition', prod.edition), ('Release year', prod.release_year), ('Discontinued', prod.discontinued_on), ('Status', prod.status), ('SKU', prod.sku), ('Author', prod.author), ('Series', prod.series), ('Format', prod.book_format)] %}
+<dt>{{ label }}</dt><dd>{% if v %}{{ v }}{% else %}<span class="tag-missing">unknown</span>{% endif %}</dd>{% endfor %}
+<dt>RRP</dt><dd>{{ money(prod.rrp_p) }}</dd>
+<dt>Official URL</dt><dd>{% if prod.official_url %}<a href="{{ prod.official_url }}" rel="noopener noreferrer nofollow" target="_blank">link ↗</a>{% else %}<span class="tag-missing">unknown</span>{% endif %}</dd></dl>
+{% if prod.notes %}<p class="mut">{{ prod.notes }}</p>{% endif %}</div>
+<div class="panel"><h2>Aliases & identifiers</h2>
+<div class="row">{% for a in prod.aliases %}<span class="badge">{{ a.alias }}</span>{% endfor %}</div>
+<div class="row" style="margin-top:6px">{% for i in prod.identifiers %}<span class="badge b-cyan">{{ i.kind }} {{ i.value }}</span>{% endfor %}</div>
+<form class="form" method="post" action="/products/{{ prod.id }}/alias" style="margin-top:10px"><label>Add alias<input name="alias"></label>
+<label>Identifier<select name="id_kind"><option>EAN</option><option>UPC</option><option>ISBN</option><option>GW_CODE</option></select></label><label>Value<input name="id_value"></label><button>Add</button></form>
+{% if used_in %}<p class="mut">Contained in: {% for c in used_in %}<a href="/products/{{ c.bundle_id }}">{{ c.bundle.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}</div>
+<div class="panel"><h2>Sold price history</h2><div class="chart"><canvas data-chart="c_obs"></canvas></div></div>
+</div>
+
+<div class="panel" style="margin-top:12px"><h2>Valuations</h2><div class="scroll"><table>
+<tr><th>Condition</th><th>Window</th><th class="num">Comps</th><th class="num">Excl.</th><th class="num">Conservative</th><th class="num">Expected</th><th class="num">Optimistic</th><th class="num">Median</th><th class="num">Mean</th><th class="num">Range</th><th class="num">Sales/30d</th><th class="num">Sell-through</th><th class="num">Trend</th><th>Confidence</th><th>Override</th></tr>
+{% for g, ws in vals.items() %}{% for w, v in ws.items() %}
+<tr><td>{{ group_labels[g] }}</td><td>{{ w ~ 'd' if w else 'All' }}</td><td class="num">{{ v.n_comparables }}</td><td class="num">{{ v.n_excluded }}</td>
+<td class="num">{{ money(v.conservative_p) }}</td><td class="num">{{ money(v.expected_p) }}</td><td class="num">{{ money(v.optimistic_p) }}</td><td class="num">{{ money(v.median_p) }}</td><td class="num">{{ money(v.mean_p) }}</td>
+<td class="num">{{ money(v.low_p) }}–{{ money(v.high_p) }}</td><td class="num">{{ v.sales_per_30d if v.sales_per_30d is not none else '—' }}</td><td class="num">{{ pct(v.sell_through_pct) }}</td><td class="num">{{ pct(v.trend_pct) }}</td>
+<td title="{{ v.explanation|join(' ') }}">{{ conf(v.confidence) }} <span class="faint mono">{{ v.confidence_score }}</span></td>
+<td>{% if v.override_p is not none %}<span class="badge b-purple">{{ v.override_p|gbp }}</span> <span class="faint">{{ v.override_reason }}</span>{% endif %}
+{% if w == window %}<details><summary>set</summary><form class="row" method="post" action="/valuations/{{ v.id }}/override"><input name="override" placeholder="£ (blank clears)" style="width:90px"><input name="reason" placeholder="Reason" required><button class="sm">Save</button></form></details>{% endif %}</td></tr>
+{% endfor %}{% endfor %}</table></div>
+{% for g, ws in vals.items() %}{% set v = ws[window] %}<p class="faint">{{ group_labels[g] }} ({{ window }}d): {{ v.explanation|join(' ') }}</p>{% endfor %}</div>
+
+<div class="grid g2" style="margin-top:12px">
+<div class="panel"><h2>Record a sold price / observation</h2>
+<form class="form" method="post" action="/products/{{ prod.id }}/observation">
+<label>Type<select name="type"><option value="sold">Confirmed sold</option><option value="auction_hammer">Auction hammer</option><option value="unsold">Ended unsold</option><option value="asking">Asking price (context only)</option><option value="retail">Retail price</option></select></label>
+<label>Price (£)<input name="price" required></label><label>Buyer shipping (£)<input name="shipping"></label><label>Date<input type="date" name="date" value="{{ today }}" required></label>
+<label>Condition{{ cond_select(selected='sealed') }}</label><label>Platform<input name="platform" value="ebay_uk"></label><label>Edition<input name="edition"></label>
+<label>Evidence<select name="provenance"><option value="manual_verified">Verified sold listing</option><option value="product_research_manual">eBay Product Research (manual)</option></select></label>
+<label>Data label<select name="data_label"><option value="verified">Verified real sale</option><option value="test">TEST data</option></select></label>
+<label class="wide">Sold listing URL<input name="url"></label><label class="wide">Listing title<input name="title"></label>
+<label><span><input type="checkbox" name="multi_lot" value="1"> Multi-item lot</span></label><label><span><input type="checkbox" name="offer_unconfirmed" value="1"> Best offer accepted (price unconfirmed)</span></label>
+<button class="primary">Record</button></form></div>
+<div class="panel"><h2>Box contents</h2>
+<p class="faint">Components with the same sprue group share one physical sprue (alternative builds) and are counted once. Untick “sellable” for items like datacards that won't be sold alone.</p>
+<form method="post" action="/products/{{ prod.id }}/components"><table><tr><th>Component</th><th>Qty</th><th>Sprue group</th><th>Sellable</th></tr>
+{% set comps = prod.components %}
+{% for i in range(comps|length + 3) %}{% set c = comps[i] if i < comps|length else none %}
+<tr><td><select name="comp_id"><option value="">—</option>{% for p in all_products %}<option value="{{ p.id }}" {{ 'selected' if c and c.component_id==p.id }}>{{ p.name }}</option>{% endfor %}</select></td>
+<td><input name="comp_qty" type="number" min="1" value="{{ c.quantity if c else 1 }}" style="width:60px"></td><td><input name="comp_group" value="{{ c.shared_sprue_group or '' if c else '' }}" style="width:90px"></td>
+<td><input type="checkbox" name="comp_sellable" value="{{ i }}" {{ 'checked' if not c or c.separately_sellable }}></td></tr>{% endfor %}</table>
+<button style="margin-top:8px">Save contents</button></form></div></div>
+
+<div class="panel" style="margin-top:12px"><h2>Observations ({{ obs|length }})</h2><div class="scroll"><table>
+<tr><th>Date</th><th>Type</th><th>Condition</th><th class="num">Price</th><th>Platform</th><th>Evidence</th><th>Label</th><th>Flags</th><th></th></tr>
+{% for o in obs %}<tr class="{{ 'faint' if o.excluded }}"><td class="mono">{{ o.observed_on|d }}</td><td>{{ o.observation_type }}</td><td>{{ o.condition|cond }}</td><td class="num">{{ o.price_p|gbp }}{% if o.currency != 'GBP' %}<div class="faint">{{ o.currency }} {{ o.price_minor }} @ {{ o.fx_rate }}</div>{% endif %}</td>
+<td>{{ o.platform }}</td><td>{% if o.source_url %}<a href="{{ o.source_url }}" rel="noopener noreferrer nofollow" target="_blank">{{ o.provenance }}</a>{% else %}{{ o.provenance }}{% endif %}</td>
+<td>{% if o.data_label=='test' %}<span class="badge b-amber">TEST</span>{% else %}<span class="badge b-green">verified</span>{% endif %}</td>
+<td>{{ 'lot ' if o.is_multi_item_lot }}{{ 'offer? ' if o.offer_accepted_unconfirmed }}{{ ('excluded: ' ~ o.exclude_reason) if o.excluded }}</td>
+<td><form method="post" action="/observations/{{ o.id }}/exclude" class="row">{% if not o.excluded %}<input name="reason" placeholder="reason" style="width:110px">{% endif %}<button class="sm">{{ 'Include' if o.excluded else 'Exclude' }}</button></form></td></tr>
+{% else %}<tr><td colspan="9" class="empty">No observations. Without sold prices this product's value is unknown.</td></tr>{% endfor %}</table></div></div>
+<div class="panel" style="margin-top:12px"><h2>Change history</h2>{% for h in history %}<div class="faint mono">{{ h.at|dt }} {{ h.action }} {{ h.details|tojson|truncate(160) }}</div>{% else %}<div class="empty">No changes</div>{% endfor %}</div>
+<script type="application/json" id="c_obs">{{ chart|tojson_safe|safe }}</script>
+{% endblock %}

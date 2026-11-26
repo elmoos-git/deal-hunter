@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% from "_macros.html" import money, conf %}
+{% block content %}
+<div class="spread"><div><h1>Product Database</h1><p class="sub">{{ rows|length }} product(s). The catalogue starts empty: add products here or import a CSV. Missing data is shown as missing, never guessed.</p></div>
+<form class="row" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Name, alias, EAN/ISBN, faction…"><button>Search</button></form></div>
+<div class="panel scroll"><table><tr><th>ID</th><th>Name</th><th>Category</th><th>System / faction</th><th>Status</th><th>SKU</th><th class="num">RRP</th><th class="num">Expected (90d)</th><th>Confidence</th><th>Bundle</th></tr>
+{% for p in rows %}{% set v = current.get(p.id) %}<tr><td class="mono faint">{{ p.id }}</td><td><a href="/products/{{ p.id }}">{{ p.name }}</a></td><td>{{ p.category.name if p.category else '—' }}</td>
+<td>{{ p.game_system or '—' }}{% if p.faction %} / {{ p.faction }}{% endif %}</td><td>{{ p.status }}</td><td class="mono">{{ p.sku or '—' }}</td><td class="num">{{ money(p.rrp_p) }}</td>
+<td class="num">{{ money(v.effective_expected_p if v and v.confidence != 'insufficient' else none) }}</td><td>{{ conf(v.confidence if v else 'insufficient') }}</td><td>{{ '✓' if p.is_bundle }}</td></tr>
+{% else %}<tr><td colspan="10" class="empty">No products{{ ' match' if q }}.</td></tr>{% endfor %}</table></div>
+<div class="panel" style="margin-top:12px"><h2>New product</h2>
+<form class="form" method="post" action="/products/new">
+<label class="wide">Official name<input name="name" required></label>
+<label>Category<input name="category" list="cats" placeholder="Warhammer miniatures"><datalist id="cats"><option>Warhammer miniatures</option><option>Warhammer books</option><option>Video game collectibles</option><option>Anime figures</option><option>Action figures</option></datalist></label>
+<label>Manufacturer / publisher<input name="manufacturer" placeholder="Games Workshop"></label>
+<label>Game system<input name="game_system"></label><label>Faction<input name="faction"></label><label>Edition<input name="edition"></label>
+<label>Status<select name="status">{% for s in ['unknown','current','discontinued','limited','made_to_order'] %}<option>{{ s }}</option>{% endfor %}</select></label>
+<label>Release year<input name="release_year" type="number"></label><label>SKU / GW code<input name="sku"></label><label>RRP (£)<input name="rrp"></label>
+<label>EAN<input name="ean"></label><label>ISBN<input name="isbn"></label><label>Author (books)<input name="author"></label><label>Series (books)<input name="series"></label><label>Format (books)<input name="book_format" placeholder="Hardback"></label>
+<label class="wide">Aliases / abbreviations (separate with |)<input name="aliases" placeholder="SM Combat Patrol|Space Marine CP"></label>
+<label class="wide">Official URL<input name="official_url"></label><label class="wide">Notes<input name="notes"></label>
+<button class="primary">Create product</button></form></div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_macros.html" import status as st %}
+{% block content %}
+<h1>Imports</h1><p class="sub">CSV or JSON. Each file is fingerprinted so it can't be imported twice; purchases are also de-duplicated by order reference. Anything uncertain goes to the review queue instead of being guessed.</p>
+<div class="grid g2">
+<form class="panel" method="post" action="/imports" enctype="multipart/form-data"><h2>Upload</h2><div class="form">
+<label>Type<select name="kind"><option value="products">Catalogue products (+ box contents)</option><option value="sold_observations">Sold prices / observations</option><option value="listings">Marketplace listings → opportunities</option><option value="purchases">Purchases</option></select></label>
+<label>File<input type="file" name="file" accept=".csv,.json" required></label><button class="primary">Import</button></div>
+<p class="faint">Templates: <a href="/imports/template/products.csv">products</a> · <a href="/imports/template/sold_observations.csv">sold prices</a> · <a href="/imports/template/listings.csv">listings</a> · <a href="/imports/template/purchases.csv">purchases</a>. Sold prices must carry <span class="mono">data_label</span> = verified or test.</p>
+<p class="faint">Not built yet: EML email imports, eBay order report import, mailbox integration (Phase 5).</p></form>
+<div class="panel"><h2>Review queue ({{ reviews|length }})</h2><table>{% for r in reviews %}<tr><td class="mono faint">#{{ r.import_job_id }} row {{ r.row_number }}</td><td>{{ r.issue }}<div class="faint mono">{{ r.row|tojson|truncate(140) }}</div></td><td><form method="post" action="/imports/review/{{ r.id }}"><button class="sm">Dismiss</button></form></td></tr>{% else %}<tr><td class="empty">Nothing to review</td></tr>{% endfor %}</table></div></div>
+<div class="panel" style="margin-top:12px"><h2>Import history</h2><table><tr><th>#</th><th>When</th><th>Type</th><th>File</th><th class="num">Rows</th><th class="num">Created</th><th class="num">Duplicates</th><th class="num">Review</th><th class="num">Errors</th><th>Status</th></tr>
+{% for j in jobs %}<tr><td class="mono">{{ j.id }}</td><td class="mono">{{ j.created_at|dt }}</td><td>{{ j.kind }}</td><td>{{ j.filename }}</td><td class="num">{{ j.rows_total }}</td><td class="num">{{ j.rows_created }}</td><td class="num">{{ j.rows_duplicate }}</td><td class="num">{{ j.rows_review }}</td><td class="num">{{ j.rows_error }}</td><td>{{ st(j.status) }}{% if j.summary %}<details><summary>details</summary>{% for m in j.summary %}<div class="faint">{{ m }}</div>{% endfor %}</details>{% endif %}</td></tr>
+{% else %}<tr><td colspan="10" class="empty">No imports yet</td></tr>{% endfor %}</table></div>
+{% endblock %}

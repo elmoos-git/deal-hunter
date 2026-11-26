@@ -1,0 +1,2 @@
+product,type,condition,date,price,currency,fx_rate,shipping,platform,url,title,edition,data_label,provenance,multi_lot,offer_unconfirmed
+Example Kit A (replace me),sold,sealed,2026-11-01,25.00,GBP,1,3.50,ebay_uk,https://www.ebay.co.uk/itm/EXAMPLE,Example sold listing title,,test,product_research_manual,no,no

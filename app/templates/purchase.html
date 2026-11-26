@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% from "_macros.html" import cond_select %}
+{% block content %}
+<h1>Record purchase</h1><p class="sub">Creates inventory with a landed cost basis and a cash ledger entry. The order reference prevents the same purchase being recorded twice. Available cash: <b>{{ cash|gbp }}</b>.</p>
+<form class="panel" method="post" action="/inventory/purchase">
+{% if o %}<input type="hidden" name="opportunity_id" value="{{ o.id }}"><p class="mut">From opportunity: <a href="/deals/{{ o.id }}">{{ o.listing.title }}</a></p>{% endif %}
+<div class="form">
+<label>Source<select name="source">{% for s in srcs %}<option value="{{ s.key }}" {{ 'selected' if (o and o.listing.source_id==s.id) or (not o and s.key=='manual') }}>{{ s.name }}</option>{% endfor %}</select></label>
+<label>Order ref / lot no. / receipt id<input name="order_ref" required></label><label>Date<input type="date" name="date" value="{{ today }}"></label>
+<label>Seller<input name="seller" value="{{ o.listing.seller or '' if o else '' }}"></label>
+<label>Shipping paid (£)<input name="shipping" value="{{ '%.2f'|format(o.listing.shipping_p/100) if o else '0' }}"></label>
+<label>Fees: premium, buyer protection, payment (£)<input name="fees" value="0"></label><label>Other: FX, import VAT/duty, travel (£)<input name="other" value="0"></label>
+<label>Initial status<select name="status"><option value="awaiting_delivery">Awaiting delivery</option><option value="received">Received</option><option value="purchased">Purchased</option></select></label>
+<label class="wide">Listing URL<input name="url" value="{{ o.listing.url or '' if o else '' }}"></label>
+</div>
+<h2 style="margin-top:14px">Items</h2><table><tr><th>Description</th><th>Catalogue product</th><th>Qty</th><th>Unit price (£)</th><th>Condition</th></tr>
+{% for i in range(5) %}<tr><td><input name="l_desc" value="{{ o.listing.title if o and i==0 else '' }}" style="width:100%"></td>
+<td><select name="l_product"><option value="">— none —</option>{% for p in products %}<option value="{{ p.id }}" {{ 'selected' if o and i==0 and o.product_id==p.id }}>{{ p.name }}</option>{% endfor %}</select></td>
+<td><input name="l_qty" type="number" min="1" value="{{ o.listing.quantity if o and i==0 else 1 }}" style="width:60px"></td><td><input name="l_price" value="{{ '%.2f'|format(o.listing.price_p/o.listing.quantity/100) if o and i==0 else '' }}" style="width:90px"></td>
+<td>{{ cond_select('l_cond', o.listing.condition if o and i==0 else 'unknown') }}</td></tr>{% endfor %}</table>
+<p class="faint">Shipping, fees and other costs are spread across lines in proportion to price, to the penny.</p>
+<label class="mut">Notes<textarea name="notes"></textarea></label>
+<button class="primary" style="margin-top:8px">Record purchase</button></form>
+{% endblock %}

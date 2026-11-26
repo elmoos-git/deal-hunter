@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, score, conf %}
+{% block content %}
+<div class="spread"><div><h1>Command Centre</h1><p class="sub">Every figure below is computed from recorded purchases, sales, expenses and the cash ledger.</p></div>
+{% if not dash.reconciles %}<span class="badge b-red">Books do not reconcile: gap {{ dash.reconciliation_gap_p|gbp }}</span>{% else %}<span class="badge b-green">Books reconcile</span>{% endif %}</div>
+{% if needs_capital %}
+<div class="panel" style="margin-bottom:12px"><h2>Start here</h2>
+<p class="mut">No capital recorded yet. Record your starting budget so available cash and ROI can be tracked.</p>
+<form class="form" method="post" action="/finance/capital"><input type="hidden" name="back" value="/">
+<label>Initial capital (£)<input name="amount" value="{{ '%.2f'|format(initial/100) }}"></label>
+<label>Date<input type="date" name="date" value="{{ today }}"></label>
+<button class="primary">Record initial capital</button></form></div>
+{% endif %}
+<div class="grid g6">
+  <div class="panel kpi"><div class="lbl">Available cash</div><div class="val">{{ dash.cash_p|gbp }}</div><div class="note">reserve {{ budget.min_cash_reserve_p|gbp }}</div></div>
+  <div class="panel kpi"><div class="lbl">Inventory at cost</div><div class="val">{{ dash.inventory_cost_p|gbp }}</div><div class="note">{{ dash.units_on_hand }} units on hand</div></div>
+  <div class="panel kpi"><div class="lbl">Est. inventory value</div><div class="val">{{ money(dash.inventory_est_value_p) }}</div><div class="note">{% if dash.unvalued_items %}{{ dash.unvalued_items }} item(s) unvalued{% else %}from current valuations{% endif %}</div></div>
+  <div class="panel kpi"><div class="lbl">Potential profit (unrealised)</div><div class="val">{{ money(dash.potential_profit_p, True) }}</div><div class="note">valued items only, before fees</div></div>
+  <div class="panel kpi"><div class="lbl">Realised profit</div><div class="val">{{ money(dash.realised_profit_p, True) }}</div><div class="note">after overheads {{ dash.business_profit_p|gbp }}</div></div>
+  <div class="panel kpi"><div class="lbl">Revenue</div><div class="val">{{ dash.revenue_p|gbp }}</div><div class="note">{{ dash.sales_count }} sale(s)</div></div>
+  <div class="panel kpi"><div class="lbl">ROI on sold stock</div><div class="val">{{ pct(dash.roi_pct) }}</div><div class="note">profit ÷ cost of goods sold</div></div>
+  <div class="panel kpi"><div class="lbl">Net margin</div><div class="val">{{ pct(dash.margin_pct) }}</div><div class="note">profit ÷ revenue</div></div>
+  <div class="panel kpi"><div class="lbl">Active listings</div><div class="val">{{ dash.listed_items }}</div><div class="note">items with status listed</div></div>
+  <div class="panel kpi"><div class="lbl">Avg holding time</div><div class="val">{{ dash.avg_holding_days if dash.avg_holding_days is not none else '—' }}{% if dash.avg_holding_days is not none %}d{% endif %}</div><div class="note">unsold stock</div></div>
+  <div class="panel kpi"><div class="lbl">Capital contributed</div><div class="val">{{ dash.capital_in_p|gbp }}</div><div class="note">withdrawn {{ dash.withdrawals_p|gbp }}</div></div>
+  <div class="panel kpi"><div class="lbl">Open opportunities</div><div class="val">{{ dash.open_opportunities }}</div><div class="note"><a href="/deals">Deal Scanner →</a></div></div>
+</div>
+<div class="grid g3" style="margin-top:12px">
+  <div class="panel"><h2>Cash balance over time</h2><div class="chart"><canvas data-chart="c_cash"></canvas></div></div>
+  <div class="panel"><h2>Revenue vs spending (monthly)</h2><div class="chart"><canvas data-chart="c_revexp"></canvas></div></div>
+  <div class="panel"><h2>Monthly realised profit</h2><div class="chart"><canvas data-chart="c_profit"></canvas></div></div>
+  <div class="panel"><h2>Inventory cost by category</h2><div class="chart"><canvas data-chart="c_cat"></canvas></div></div>
+  <div class="panel"><h2>Inventory age (cost held)</h2><div class="chart"><canvas data-chart="c_age"></canvas></div></div>
+  <div class="panel"><h2>Profit by sourcing channel</h2><div class="chart"><canvas data-chart="c_src"></canvas></div></div>
+  <div class="panel"><h2>Profit by category</h2><div class="chart"><canvas data-chart="c_pcat"></canvas></div></div>
+  <div class="panel"><h2>Forecast cash flow</h2><div class="empty">Not built yet (Phase 5). Needs a few months of sales history to forecast honestly.</div></div>
+  <div class="panel"><h2>High-priority alerts</h2>
+    {% for a in alerts %}<div style="padding:4px 0;border-bottom:1px solid var(--line)"><span class="badge {{ 'b-red' if a.priority=='high' else '' }}">{{ a.kind|replace('_',' ') }}</span> {% if a.link %}<a href="{{ a.link }}">{{ a.message }}</a>{% else %}{{ a.message }}{% endif %}</div>{% else %}<div class="empty">No unread alerts</div>{% endfor %}
+  </div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+  <div class="panel"><div class="spread"><h2>Newly discovered opportunities</h2><a href="/deals">All →</a></div>
+  <table><tr><th>Score</th><th>Listing</th><th class="num">Cost</th><th class="num">Exp. profit</th><th>Confidence</th></tr>
+  {% for o in opps %}<tr><td>{{ score(o.score) }}</td><td><a href="/deals/{{ o.id }}">{{ o.listing.title|truncate(60) }}</a></td><td class="num">{{ o.acquisition_p|gbp }}</td><td class="num">{{ money(o.profit_expected_p, True) }}</td><td>{{ conf(o.confidence) }}</td></tr>
+  {% else %}<tr><td colspan="5" class="empty">No opportunities yet. Add a listing or import a CSV.</td></tr>{% endfor %}</table></div>
+  <div class="panel"><h2>Upcoming auctions</h2>
+  <table><tr><th>Ends</th><th>Lot</th><th class="num">Current</th></tr>
+  {% for l in auctions %}<tr><td class="mono">{{ l.ends_at|dt }}</td><td>{{ l.title|truncate(60) }}</td><td class="num">{{ l.price_p|gbp }}</td></tr>
+  {% else %}<tr><td colspan="3" class="empty">No tracked auctions with an end time</td></tr>{% endfor %}</table></div>
+</div>
+{% for id, spec in charts.items() %}<script type="application/json" id="{{ id }}">{{ spec|tojson_safe|safe }}</script>{% endfor %}
+{% endblock %}

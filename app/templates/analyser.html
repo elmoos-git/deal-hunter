@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct %}
+{% block content %}
+<h1>Auction & Listing Analyser</h1><p class="sub">Itemised landed cost and maximum bid. Enter the fee terms from the auctioneer's own conditions of sale for this auction — fees differ by house and sale, so there is no universal default.</p>
+{% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+<div class="grid g2">
+<form class="panel" method="get"><h2>Lot & fee terms</h2><div class="form">
+<label>Auction house<input name="house" value="{{ q.get('house','') }}"></label>
+<label>Hammer / your bid (£)<input name="bid" value="{{ q.get('bid','') }}" required></label>
+<label>Expected resale (£, gross)<input name="resale" value="{{ q.get('resale','') }}" required></label>
+<label>Conservative resale (£)<input name="conservative" value="{{ q.get('conservative','') }}"></label>
+<label>Optimistic resale (£)<input name="optimistic" value="{{ q.get('optimistic','') }}"></label>
+{% for i in range(3) %}<label>Premium tier {{ i+1 }} rate %<input name="t{{ i }}_rate" value="{{ q.get('t' ~ i ~ '_rate', '') }}"></label><label>…applies up to (£, blank = no limit)<input name="t{{ i }}_upto" value="{{ q.get('t' ~ i ~ '_upto','') }}"></label>{% endfor %}
+<label>Tiers apply<select name="marginal"><option value="1" {{ 'selected' if q.get('marginal','1')=='1' }}>Marginally (band by band)</option><option value="0" {{ 'selected' if q.get('marginal')=='0' }}>To whole hammer</option></select></label>
+<label>Minimum premium (£)<input name="min_premium" value="{{ q.get('min_premium','') }}"></label>
+<label>VAT on premium<select name="vat_premium"><option value="1">Yes (20%)</option><option value="0" {{ 'selected' if q.get('vat_premium')=='0' }}>No</option></select></label>
+<label>VAT on hammer<select name="vat_hammer"><option value="0">No</option><option value="1" {{ 'selected' if q.get('vat_hammer')=='1' }}>Yes (VAT-marked lot)</option></select></label>
+<label>Online bidding surcharge %<input name="surcharge" value="{{ q.get('surcharge','') }}"></label>
+<label>Surcharge fixed (£)<input name="surcharge_fixed" value="{{ q.get('surcharge_fixed','') }}"></label>
+<label>VAT on surcharge<select name="vat_surcharge"><option value="1">Yes</option><option value="0" {{ 'selected' if q.get('vat_surcharge')=='0' }}>No</option></select></label>
+<label>Per-lot fee (£)<input name="lot_fee" value="{{ q.get('lot_fee','') }}"></label>
+<label>Card/payment fee %<input name="payment_fee" value="{{ q.get('payment_fee','') }}"></label>
+<label>Shipping (£)<input name="shipping" value="{{ q.get('shipping','') }}"></label>
+<label>Collection/travel (£)<input name="collection" value="{{ q.get('collection','') }}"></label>
+<label>FX / import costs (£)<input name="fx_import" value="{{ q.get('fx_import','') }}"></label>
+<label>Target profit (£)<input name="target_profit" value="{{ q.get('target_profit','') }}"></label>
+<label>Target ROI %<input name="target_roi" value="{{ q.get('target_roi','') }}"></label>
+<label>Target margin %<input name="target_margin" value="{{ q.get('target_margin','') }}"></label>
+<button class="primary">Calculate</button></div>
+<p class="faint">Resale is after the selling-fee profile in Settings, default postage and packaging. Max bids ignore bid increments and reserves.</p></form>
+<div class="panel">{% if result %}{% set c = result.cost %}
+<h2>Landed cost at {{ c.hammer_p|gbp }} hammer</h2><table>{% for k, v in c.lines() %}{% if v %}<tr><td>{{ k }}</td><td class="num">{{ v|gbp }}</td></tr>{% endif %}{% endfor %}
+<tr><td><b>Total landed cost</b></td><td class="num"><b>{{ c.total_p|gbp }}</b></td></tr></table>
+<h2 style="margin-top:14px">Profit scenarios</h2><table><tr><th></th><th class="num">Gross resale</th><th class="num">Net of selling costs</th><th class="num">Profit</th></tr>
+{% for k, label in [('conservative','Conservative'),('resale','Expected'),('optimistic','Optimistic')] %}{% set r = result.scen[k] %}<tr><td>{{ label }}</td><td class="num">{{ r[0]|gbp }}</td><td class="num">{{ r[1]|gbp }}</td><td class="num">{{ money(r[2], True) }}</td></tr>{% endfor %}</table>
+<div class="grid g3" style="margin-top:12px">
+<div class="kpi"><div class="lbl">Break-even bid</div><div class="val">{{ money(result.break_even) }}</div><div class="note">expected resale</div></div>
+<div class="kpi"><div class="lbl">Max safe bid</div><div class="val">{{ money(result.max_safe) }}</div><div class="note">break-even at conservative</div></div>
+<div class="kpi"><div class="lbl">Recommended max</div><div class="val pos">{{ money(result.recommended) }}</div><div class="note">meets your targets at conservative</div></div>
+</div><p>ROI at this bid: {{ pct(result.roi) }} · Net margin: {{ pct(result.margin) }}</p>
+{% else %}<div class="empty">Fill in the lot and fee terms to see the itemised cost and maximum bids.</div>{% endif %}
+<p class="faint">Automatic extraction of lot details from auction URLs is Phase 4. Use “Capture from a URL” on the Deal Scanner for public page metadata.</p></div></div>
+{% endblock %}

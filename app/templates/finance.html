@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct %}
+{% block content %}
+<h1>Finance & Analytics</h1><p class="sub">Cash comes only from the ledger. Unsold inventory is never counted as profit. Figures are for record-keeping, not tax advice; VAT registered: {{ 'yes' if st.vat_registered else 'no' }}.</p>
+<div class="grid g6">
+<div class="panel kpi"><div class="lbl">Cash available</div><div class="val">{{ dash.cash_p|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">Inventory at cost</div><div class="val">{{ dash.inventory_cost_p|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">Est. inventory value</div><div class="val">{{ money(dash.inventory_est_value_p) }}</div><div class="note">unrealised</div></div>
+<div class="panel kpi"><div class="lbl">Transaction profit</div><div class="val">{{ money(dash.realised_profit_p, True) }}</div></div>
+<div class="panel kpi"><div class="lbl">Overheads + write-offs</div><div class="val">{{ (dash.overheads_p + dash.write_offs_p)|gbp }}</div></div>
+<div class="panel kpi"><div class="lbl">Business profit</div><div class="val">{{ money(dash.business_profit_p, True) }}</div></div></div>
+<div class="panel" style="margin-top:12px"><h2>Reconciliation</h2>
+<p class="mono">cash {{ dash.cash_p|gbp }} + inventory at cost {{ dash.inventory_cost_p|gbp }} = {{ (dash.cash_p + dash.inventory_cost_p)|gbp }}<br>
+capital {{ dash.capital_in_p|gbp }} − withdrawals {{ dash.withdrawals_p|gbp }} + business profit {{ dash.business_profit_p|gbp }} = {{ (dash.capital_in_p - dash.withdrawals_p + dash.business_profit_p)|gbp }}
+{% if dash.reconciles %}<span class="badge b-green">balanced</span>{% else %}<span class="badge b-red">gap {{ dash.reconciliation_gap_p|gbp }}</span>{% endif %}</p></div>
+<div class="grid g2" style="margin-top:12px">
+<form class="panel" method="post" action="/finance/capital"><h2>Capital in / withdrawal</h2><div class="form">
+<label>Type<select name="kind"><option value="capital_in">Capital contribution</option><option value="withdrawal">Withdrawal</option></select></label><label>Amount (£)<input name="amount" required></label><label>Date<input type="date" name="date" value="{{ today }}"></label><label class="wide">Note<input name="note"></label><button>Record</button></div></form>
+<form class="panel" method="post" action="/finance/expense"><h2>Business overhead</h2><div class="form">
+<label>Amount (£)<input name="amount" required></label><label>Date<input type="date" name="date" value="{{ today }}"></label><label>Category<select name="category"><option>packaging_stock</option><option>subscriptions</option><option>equipment</option><option>travel</option><option>other</option></select></label><label class="wide">Description<input name="description" required></label><button>Record expense</button></div></form></div>
+<div class="panel" style="margin-top:12px"><h2>Monthly</h2><table><tr><th>Month</th><th class="num">Revenue</th><th class="num">Stock purchases</th><th class="num">Overheads</th><th class="num">Realised profit</th></tr>
+{% for m in dash.monthly %}<tr><td class="mono">{{ m.month }}</td><td class="num">{{ m.revenue_p|gbp }}</td><td class="num">{{ m.purchases_p|gbp }}</td><td class="num">{{ m.expenses_p|gbp }}</td><td class="num">{{ money(m.profit_p, True) }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No activity yet</td></tr>{% endfor %}</table>
+<p class="faint">Tax-year reports and accounting exports are planned (Phase 5).</p></div>
+<div class="panel" style="margin-top:12px"><h2>Cash ledger</h2><div class="scroll"><table><tr><th>Date</th><th>Type</th><th>Description</th><th class="num">Amount</th></tr>
+{% for t in txs %}<tr><td class="mono">{{ t.occurred_on|d }}</td><td>{{ t.kind|replace('_',' ') }}</td><td>{{ t.description }}</td><td class="num">{{ money(t.amount_p, True) }}</td></tr>{% else %}<tr><td colspan="4" class="empty">Empty ledger</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

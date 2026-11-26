@@ -1,0 +1,3 @@
+name,category,manufacturer,game_system,faction,edition,status,release_year,sku,rrp,ean,isbn,aliases,author,series,book_format,contents,notes
+Example Kit A (replace me),Warhammer miniatures,Games Workshop,Example System,Example Faction,,unknown,,,,,,Kit A|EKA,,,,,Example row: delete before importing
+Example Box (replace me),Warhammer miniatures,Games Workshop,Example System,Example Faction,,unknown,,,,,,Example Box,,,,Example Kit A (replace me)*2,contents: Name*qty | Name@sprue_group | Name! (not sold alone)

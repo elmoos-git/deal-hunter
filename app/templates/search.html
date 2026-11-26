@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}<h1>Search: “{{ q }}”</h1><p class="sub">Products (names, aliases, identifiers), inventory and listings.</p>
+<div class="grid g3">
+<div class="panel"><h2>Products</h2>{% for p in prods %}<div><a href="/products/{{ p.id }}">{{ p.name }}</a></div>{% else %}<div class="empty">None</div>{% endfor %}</div>
+<div class="panel"><h2>Inventory</h2>{% for i in items %}<div><a href="/inventory/{{ i.id }}">{{ i.sku }}</a> {{ i.name }}</div>{% else %}<div class="empty">None</div>{% endfor %}</div>
+<div class="panel"><h2>Listings</h2>{% for l in listings %}<div>{{ l.title }}</div>{% else %}<div class="empty">None</div>{% endfor %}</div>
+</div>{% endblock %}

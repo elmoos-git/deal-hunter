@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% from "_macros.html" import money, pct, score, conf %}
+{% block content %}{% set l = o.listing %}
+<div class="spread"><div><h1>{{ l.title }}</h1><p class="sub">{{ l.source.name }} · {{ l.condition|cond }} · {{ l.listing_type }} · first seen {{ l.first_seen_at|dt }} · status <b>{{ o.status }}</b>{% if o.reject_reason %} ({{ o.reject_reason }}){% endif %}</p></div>
+<div class="row">{% if l.url %}<a class="btn" href="{{ l.url }}" target="_blank" rel="noopener noreferrer nofollow">Open original ↗</a>{% endif %}
+<a class="btn primary" href="/inventory/purchase?opportunity={{ o.id }}">Mark as purchased…</a></div></div>
+<div class="grid g4">
+ <div class="panel kpi"><div class="lbl">Deal score</div><div class="val">{{ score(o.score) }}</div><div class="note">{{ o.classification }}</div></div>
+ <div class="panel kpi"><div class="lbl">Landed cost</div><div class="val">{{ o.acquisition_p|gbp }}</div></div>
+ <div class="panel kpi"><div class="lbl">Expected profit</div><div class="val">{{ money(o.profit_expected_p, True) }}</div><div class="note">conservative {{ money(o.profit_conservative_p, True) }}</div></div>
+ <div class="panel kpi"><div class="lbl">ROI</div><div class="val">{{ pct(o.roi_pct) }}</div><div class="note">{{ conf(o.confidence) }}</div></div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+<div class="panel"><h2>Why this score</h2><ul class="list">{% for e in o.explanation %}<li>{{ e }}</li>{% endfor %}</ul>
+{% if o.warnings %}<h2 style="margin-top:12px">Purchasing rule warnings</h2><ul class="list warn">{% for w in o.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}</div>
+<div class="panel"><h2>Cost & revenue breakdown</h2><table>
+{% for k,v in pf.acquisition_lines %}<tr><td>{{ k }}</td><td class="num">{{ v|gbp }}</td></tr>{% endfor %}
+<tr><td><b>Landed acquisition cost</b></td><td class="num"><b>{{ pf.acquisition_p|gbp }}</b></td></tr>
+<tr><td>Resale (conservative / expected) × {{ l.quantity }}</td><td class="num">{{ money(pf.resale_conservative_p) }} / {{ money(pf.resale_expected_p) }}</td></tr>
+<tr><td>Selling costs at expected (fees, postage, packaging)</td><td class="num">{{ money(pf.selling_costs_p) }}</td></tr>
+<tr><td><b>Expected net profit</b></td><td class="num"><b>{{ money(pf.profit_expected_p, True) }}</b></td></tr></table>
+{% if pf.valuation %}<p class="faint">Valuation: {{ pf.valuation.n_comparables }} comps, {{ pf.valuation.window_days or 'all' }}-day window. {% for e in pf.valuation.explanation %}{{ e }} {% endfor %}</p>{% endif %}</div>
+</div>
+<div class="grid g3" style="margin-top:12px">
+<div class="panel"><h2>Product identification</h2>
+<p>Matched: {% if o.product %}<a href="/products/{{ o.product.id }}">{{ o.product.name }}</a> <span class="faint">({{ l.match_method }}, {{ l.match_score }})</span>{% else %}<span class="warn">none</span>{% endif %}</p>
+{% if candidates %}<p class="faint">Candidates: {% for c in candidates %}{{ c.product.name }} ({{ c.score }}){{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+<form class="row" method="post" action="/deals/{{ o.id }}/identify"><select name="product_id"><option value="">— Not identified —</option>{% for p in products %}<option value="{{ p.id }}" {{ 'selected' if o.product_id==p.id }}>{{ p.name }}</option>{% endfor %}</select><button>Correct & re-score</button></form></div>
+<div class="panel"><h2>Actions</h2><div class="row">
+{% for st,label in [('saved','Save'),('watching','Add to watchlist'),('new','Reset to new')] %}<form class="inline" method="post" action="/deals/{{ o.id }}/status"><input type="hidden" name="status" value="{{ st }}"><button class="sm">{{ label }}</button></form>{% endfor %}</div>
+<form class="row" method="post" action="/deals/{{ o.id }}/status" style="margin-top:10px"><input type="hidden" name="status" value="dismissed"><input name="reason" placeholder="Why reject? (required)" required style="flex:1"><button class="sm danger">Dismiss</button></form></div>
+<div class="panel"><h2>Price history</h2><table>{% for sn in snaps %}<tr><td class="mono">{{ sn.captured_at|dt }}</td><td class="num">{{ sn.price_p|gbp }} + {{ sn.shipping_p|gbp }}</td><td class="faint">{{ sn.note }}</td></tr>{% endfor %}</table>
+{% if dup %}<p class="warn">Possible duplicate of a listing on another source: “{{ dup.title }}”.</p>{% endif %}</div>
+</div>
+{% if l.description %}<div class="panel" style="margin-top:12px"><h2>Listing description (external, untrusted)</h2><div class="untrusted">{{ l.description }}</div></div>{% endif %}
+{% endblock %}
